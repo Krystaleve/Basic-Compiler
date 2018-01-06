@@ -2,13 +2,20 @@
 #define AST_H_INCLUDE
 
 #include <llvm/IR/Value.h>
+#include <vector>
 
 class YacCodeGenContext;
 
 class YacSyntaxTreeNode {
 public:
-    virtual ~YacSyntaxTreeNode() {}
+    virtual ~YacSyntaxTreeNode() = default;
     virtual llvm::Value* generate(YacCodeGenContext &context) = 0;
+};
+
+class YacSyntaxTreeNodeList: public YacSyntaxTreeNode {
+public:
+    std::vector<YacSyntaxTreeNode *> children;
+    llvm::Value* generate(YacCodeGenContext &context) override;
 };
 
 #endif

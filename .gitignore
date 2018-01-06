@@ -1,2 +1,5 @@
 .build-*
 .idea
+src/syntax/syntax.h
+src/syntax/syntax.cpp
+src/syntax/lexical.cpp
