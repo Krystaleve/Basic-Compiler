@@ -33,13 +33,13 @@ public:
     }
 
     llvm::BasicBlock* current_block();
-    void push_block(llvm::BasicBlock* block, bool copy_locals = true);
+    void push_block(llvm::BasicBlock* block, bool copy_locals = false);
     void pop_block();
     bool is_top_level() {
         return m_blocks.empty();
     }
 
-    void generate_code(YacSyntaxTreeNodeList *root);
+    void print_code();
 private:
     std::stack<CodeBlock> m_blocks;
     std::map<std::string, llvm::Value *> m_globals;

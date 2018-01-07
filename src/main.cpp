@@ -21,7 +21,7 @@ int main(int argc, char **argv)
         return 1;
 
     YacCodeGenContext context;
-    context.generate_code(root);
-
+    root->generate(context);
+    context.print_code();
     return 0;
 }

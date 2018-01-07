@@ -37,10 +37,9 @@ void YacCodeGenContext::pop_block() {
     m_blocks.pop();
 }
 
-void YacCodeGenContext::generate_code(YacSyntaxTreeNodeList *root) {
+void YacCodeGenContext::print_code() {
     llvm::PassManager<llvm::Module> pm;
     llvm::AnalysisManager<llvm::Module> am;
-    root->generate(*this);
     pm.addPass(llvm::PrintModulePass(llvm::outs()));
     pm.run(m_module, am);
 }

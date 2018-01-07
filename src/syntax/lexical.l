@@ -8,7 +8,8 @@ E			[Ee][+-]?{D}+
     #include <iostream>
     #include <llvm/IR/LLVMContext.h>
     #include <llvm/IR/Type.h>
-    #include "../ast/declarator.h"
+    #include "../ast/ast.h"
+    #include "../ast/declaration.h"
 
     #include "syntax.h"
 

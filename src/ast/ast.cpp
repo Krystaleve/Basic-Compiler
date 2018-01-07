@@ -5,7 +5,6 @@
 llvm::Value *YacSyntaxTreeNodeList::generate(YacCodeGenContext &context)
 {
     for (auto child: children)
-        if (child) // TODO
-            child->generate(context);
+        child->generate(context);
     return nullptr;
 }

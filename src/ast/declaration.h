@@ -2,6 +2,7 @@
 #define DECLARATOR_H_INCLUDE
 
 #include <llvm/IR/Type.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,16 @@ public:
     std::string *identifier;
 
     explicit YacDeclaration(llvm::Type *type, std::string *identifier = nullptr);
+    llvm::Value* generate(YacCodeGenContext &context) override;
+};
+
+class YacFunctionDefinition: public YacSyntaxTreeNode {
+public:
+    llvm::FunctionType *type;
+    std::string *identifier;
+    YacSyntaxTreeNode *body;
+
+    explicit YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, YacSyntaxTreeNode *body);
     llvm::Value* generate(YacCodeGenContext &context) override;
 };
 

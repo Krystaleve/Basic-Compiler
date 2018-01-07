@@ -5,7 +5,7 @@
     #include <llvm/IR/DerivedTypes.h>
     #include <llvm/IR/Type.h>
     #include "../ast/ast.h"
-    #include "../ast/declarator.h"
+    #include "../ast/declaration.h"
 
     extern int yylex();
     extern int yyerror(const char *error_str);
@@ -42,6 +42,7 @@
 %type <type> type_specifier
 %type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
 %type <declarator_list> declarator_list
+%type <node> statement compound_statement statement_list declaration_list
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
 %error-verbose
@@ -65,7 +66,6 @@ postfix_expression
 	| postfix_expression '(' ')'
 	| postfix_expression '(' argument_expression_list ')'
 	| postfix_expression '.' IDENTIFIER
-	/*| postfix_expression PTR_OP IDENTIFIER*/
 	| postfix_expression INC_OP
 	| postfix_expression DEC_OP
 	;
@@ -223,6 +223,7 @@ abstract_declarator
 direct_abstract_declarator
 	: '(' abstract_declarator ')'                                    { $$ = $2; }
 	| '[' ']'                                                        { $$ = new YacDeclaratorPointer(new YacDeclaratorIdentifier); }
+	| '[' INTEGER_CONSTANT ']'                                       { $$ = new YacDeclaratorArray(new YacDeclaratorIdentifier, $2); }
 	| direct_abstract_declarator '[' ']'                             { $$ = new YacDeclaratorPointer($1); }
 	| '(' ')'                                                        { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier); }
 	| '(' parameter_list ')'                                         { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2); }
@@ -233,28 +234,33 @@ direct_abstract_declarator
 	;
 
 statement
-	: compound_statement
-	| expression_statement
-	| selection_statement
-	| iteration_statement
-	| jump_statement
+	: compound_statement   { $$ = $1; }
+	| expression_statement { $$ = new YacSyntaxEmptyNode; } // TODO
+	| selection_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
+	| iteration_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
+	| jump_statement       { $$ = new YacSyntaxEmptyNode; } // TODO
 	;
 
 compound_statement
-	: '{' '}'
-	| '{' statement_list '}'
-	| '{' declaration_list '}'
-	| '{' declaration_list statement_list '}'
+	: '{' '}'                                 { $$ = new YacSyntaxEmptyNode; }
+	| '{' statement_list '}'                  { $$ = $2; }
+	| '{' declaration_list '}'                { $$ = $2; }
+	| '{' declaration_list statement_list '}' {
+	    $$ = $2;
+	    auto &first = dynamic_cast<YacSyntaxTreeNodeList *>($$)->children;
+	    auto &second = dynamic_cast<YacSyntaxTreeNodeList *>($3)->children;
+	    first.insert(first.end(), second.begin(), second.end());
+    }
 	;
 
 declaration_list
-	: declaration
-	| declaration_list declaration
+	: declaration                  { $$ = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); }
+	| declaration_list declaration { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($2); }
 	;
 
 statement_list
-	: statement
-	| statement_list statement
+	: statement                { $$ = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); }
+	| statement_list statement { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($2); }
 	;
 
 expression_statement
@@ -292,7 +298,14 @@ external_declaration
 	;
 
 function_definition
-    : type_specifier declarator compound_statement { $$ = nullptr; }
+    : type_specifier declarator compound_statement {
+        auto type = $2->type($1);
+        if (!type->isFunctionTy()) {
+            std::cerr << "Unexpected compound statement after non-function declaration" << std::endl;
+            $$ = new YacSyntaxEmptyNode;
+        } else
+            $$ = new YacFunctionDefinition(llvm::cast<llvm::FunctionType>(type), $2->identifier(), $3);
+    }
     ;
 
 %%

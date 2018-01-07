@@ -5,30 +5,26 @@ set(CMAKE_CXX_STANDARD 11)
 
 find_package(BISON REQUIRED)
 set(BisonOutput ${CMAKE_SOURCE_DIR}/src/syntax/syntax.cpp)
-IF(BISON_FOUND)
-    ADD_CUSTOM_COMMAND(
-            OUTPUT ${BisonOutput}
-            COMMAND ${BISON_EXECUTABLE}
-            --defines=${CMAKE_SOURCE_DIR}/src/syntax/syntax.h
-            --output=${BisonOutput}
-            ${CMAKE_SOURCE_DIR}/src/syntax/syntax.y
-            MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/syntax/syntax.y
-            COMMENT "Generating syntax.cpp"
-    )
-ENDIF()
+add_custom_command(
+        OUTPUT ${BisonOutput}
+        COMMAND ${BISON_EXECUTABLE}
+        --defines=${CMAKE_SOURCE_DIR}/src/syntax/syntax.h
+        --output=${BisonOutput}
+        ${CMAKE_SOURCE_DIR}/src/syntax/syntax.y
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/syntax/syntax.y
+        COMMENT "Generating syntax.cpp"
+)
 
 find_package(FLEX REQUIRED)
 set(FlexOutput ${CMAKE_SOURCE_DIR}/src/syntax/lexical.cpp)
-IF(FLEX_FOUND)
-    add_custom_command(
-            OUTPUT ${FlexOutput}
-            COMMAND ${FLEX_EXECUTABLE}
-            --outfile=${FlexOutput}
-            ${CMAKE_SOURCE_DIR}/src/syntax/lexical.l
-            MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/syntax/lexical.l
-            COMMENT "Generating lexical.cpp"
-    )
-ENDIF()
+add_custom_command(
+        OUTPUT ${FlexOutput}
+        COMMAND ${FLEX_EXECUTABLE}
+        --outfile=${FlexOutput}
+        ${CMAKE_SOURCE_DIR}/src/syntax/lexical.l
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/src/syntax/lexical.l
+        COMMENT "Generating lexical.cpp"
+)
 
 find_package(LLVM REQUIRED CONFIG)
 
@@ -38,8 +34,8 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_executable(yac
         ${FlexOutput}
         ${BisonOutput}
-        src/ast/declarator.h
-        src/ast/declarator.cpp
+        src/ast/declaration.h
+        src/ast/declaration.cpp
         src/ast/ast.h
         src/ast/ast.cpp
         src/ast/expression.h
@@ -48,6 +44,6 @@ add_executable(yac
         src/ast/gen-ctx.cpp
         src/main.cpp)
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs core)
 
 target_link_libraries(yac ${llvm_libs})

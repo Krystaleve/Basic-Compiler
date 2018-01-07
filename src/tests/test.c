@@ -1,12 +1,10 @@
 int printf(char *, ...);
 
-int test(int i)
-{
-    return i;
+void test() {
+
 }
 
-int main()
-{
+int main() {
     printf("hello, world!\n");
     return 0;
 }
