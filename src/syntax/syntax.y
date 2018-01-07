@@ -40,7 +40,7 @@
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
 %type <type> type_specifier
-%type <declarator> declarator direct_declarator
+%type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
 %type <declarator_list> declarator_list
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
@@ -190,7 +190,7 @@ declarator_list
     ;
 
 declarator
-    : '*' declarator { $$ = new YacDeclaratorPointer($2); }
+    : '*' declarator        { $$ = new YacDeclaratorPointer($2); }
     | direct_declarator     { $$ = $1; }
     ;
 
@@ -198,9 +198,9 @@ direct_declarator
 	: IDENTIFIER                                            { $$ = new YacDeclaratorIdentifier($1); }
 	| '(' declarator ')'                                    { $$ = $2; }
 	| direct_declarator '[' INTEGER_CONSTANT ']'            { $$ = new YacDeclaratorArray($1, $3); }
-	| direct_declarator '(' parameter_list ')'              /* TODO */
-	| direct_declarator '(' parameter_list ',' ELLIPSIS ')'
-	| direct_declarator '(' ')'
+	| direct_declarator '(' parameter_list ')'              { $$ = new YacDeclaratorFunction($1, $3); }
+	| direct_declarator '(' parameter_list ',' ELLIPSIS ')' { $$ = new YacDeclaratorFunction($1, $3, true); }
+	| direct_declarator '(' ')'                             { $$ = new YacDeclaratorFunction($1); }
 	;
 
 parameter_list
@@ -209,7 +209,27 @@ parameter_list
 	;
 
 parameter_declaration
-	: type_specifier declarator { $$ = new YacDeclaration($2->type($1), $2->identifier()); }
+	: type_specifier declarator          { $$ = new YacDeclaration($2->type($1), $2->identifier()); }
+	| type_specifier abstract_declarator { $$ = new YacDeclaration($2->type($1), $2->identifier()); }
+	| type_specifier                     { $$ = new YacDeclaration($1); }
+	;
+
+abstract_declarator
+	: '*'                                { $$ = new YacDeclaratorPointer(new YacDeclaratorIdentifier); }
+	| '*' abstract_declarator            { $$ = new YacDeclaratorPointer($2); }
+	| direct_abstract_declarator         { $$ = $1; }
+	;
+
+direct_abstract_declarator
+	: '(' abstract_declarator ')'                                    { $$ = $2; }
+	| '[' ']'                                                        { $$ = new YacDeclaratorPointer(new YacDeclaratorIdentifier); }
+	| direct_abstract_declarator '[' ']'                             { $$ = new YacDeclaratorPointer($1); }
+	| '(' ')'                                                        { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier); }
+	| '(' parameter_list ')'                                         { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2); }
+	| '(' parameter_list ',' ELLIPSIS ')'                            { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2, true); }
+	| direct_abstract_declarator '(' ')'                             { $$ = new YacDeclaratorFunction($1); }
+	| direct_abstract_declarator '(' parameter_list ')'              { $$ = new YacDeclaratorFunction($1, $3); }
+	| direct_abstract_declarator '(' parameter_list ',' ELLIPSIS ')' { $$ = new YacDeclaratorFunction($1, $3, true); }
 	;
 
 statement
