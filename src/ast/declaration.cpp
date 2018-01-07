@@ -66,8 +66,8 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
         auto function = llvm::Function::Create(llvm::cast<llvm::FunctionType>(type), llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
         return function;
     } else if (context.is_top_level()) {
-        if (!type->isSized()) {
-            std::cerr << "Global variable \"" << *identifier << "\" has no size" << std::endl;
+        if (!type->isVoidTy()) {
+            std::cerr << "Cannot create void global variable \"" << *identifier << "\"" << std::endl;
             return nullptr;
         }
         if (context.globals().find(*identifier) != context.globals().end()) {
@@ -94,8 +94,16 @@ llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
     auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
     auto block = llvm::BasicBlock::Create(globalContext, "", function);
     context.push_block(block);
-
     body->generate(context);
+    if (!block->getTerminator()) {
+        if (function->getReturnType()->isVoidTy()) {
+            llvm::ReturnInst::Create(globalContext, block);
+        } else {
+            llvm::Value *variable = new llvm::AllocaInst(function->getReturnType(), 0, "", block);
+            llvm::Value *value = new llvm::LoadInst(variable, "", block);
+            llvm::ReturnInst::Create(globalContext, value, block);
+        }
+    }
     context.pop_block();
     return function;
 }

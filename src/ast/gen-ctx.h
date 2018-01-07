@@ -7,6 +7,7 @@
 #include <llvm/IR/Module.h>
 #include <stack>
 #include <map>
+#include <memory>
 #include "ast.h"
 
 extern llvm::LLVMContext globalContext;
@@ -29,7 +30,7 @@ public:
     std::map<std::string, llvm::Value*>& locals();
     std::map<std::string, llvm::Value*>& globals();
     llvm::Module &module() {
-        return m_module;
+        return *m_module;
     }
 
     llvm::BasicBlock* current_block();
@@ -39,12 +40,13 @@ public:
         return m_blocks.empty();
     }
 
-    void print_code();
+    void print();
+    int execute();
 private:
     std::stack<CodeBlock> m_blocks;
     std::map<std::string, llvm::Value *> m_globals;
 
-    llvm::Module m_module;
+    std::unique_ptr<llvm::Module> m_module;
 };
 
 #endif

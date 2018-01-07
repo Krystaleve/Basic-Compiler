@@ -1,6 +1,6 @@
 int printf(char *, ...);
 
-void test() {
+int test() {
 
 }
 

@@ -44,6 +44,6 @@ add_executable(yac
         src/ast/gen-ctx.cpp
         src/main.cpp)
 
-llvm_map_components_to_libnames(llvm_libs core)
+llvm_map_components_to_libnames(llvm_libs core executionengine x86asmparser x86asmprinter x86codegen mcjit)
 
 target_link_libraries(yac ${llvm_libs})

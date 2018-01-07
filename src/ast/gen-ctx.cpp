@@ -1,11 +1,14 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/IRPrintingPasses.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <iostream>
 #include "gen-ctx.h"
 
 llvm::LLVMContext globalContext; // NOLINT
 
 YacCodeGenContext::YacCodeGenContext()
-    : m_module("main", globalContext) {}
+    : m_module(new llvm::Module("main", globalContext)) {}
 
 
 CodeBlock::CodeBlock(llvm::BasicBlock *block)
@@ -37,10 +40,30 @@ void YacCodeGenContext::pop_block() {
     m_blocks.pop();
 }
 
-void YacCodeGenContext::print_code() {
+void YacCodeGenContext::print() {
     llvm::PassManager<llvm::Module> pm;
     llvm::AnalysisManager<llvm::Module> am;
     pm.addPass(llvm::PrintModulePass(llvm::outs()));
-    pm.run(m_module, am);
+    pm.run(*m_module, am);
 }
 
+int YacCodeGenContext::execute() {
+    auto main = m_module->getFunction("main");
+    if (!main) {
+        std::cerr << "Cannot find main function" << std::endl;
+        return 1;
+    }
+    std::vector<llvm::GenericValue> args;
+    if (main->getFunctionType() != llvm::FunctionType::get(llvm::IntegerType::get(globalContext, 32), false)) {
+        std::cerr << "Wrong main function signature" << std::endl;
+        return 1;
+    }
+    llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::move(m_module)).create();
+    if (!engine) {
+        std::cerr << "Failed to create execution engine" << std::endl;
+        return 1;
+    }
+    engine->finalizeObject();
+    llvm::GenericValue v = engine->runFunction(main, args);
+    return static_cast<int>(v.IntVal.getLimitedValue());
+}

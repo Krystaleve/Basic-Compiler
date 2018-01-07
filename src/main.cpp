@@ -1,4 +1,6 @@
 #include <iostream>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/ExecutionEngine/MCJIT.h>
 #include "ast/ast.h"
 #include "ast/gen-ctx.h"
 
@@ -20,8 +22,12 @@ int main(int argc, char **argv)
     if (yyparse() && !root)
         return 1;
 
+    InitializeNativeTarget();
+    InitializeNativeTargetAsmPrinter();
+    InitializeNativeTargetAsmParser();
+
     YacCodeGenContext context;
     root->generate(context);
-    context.print_code();
-    return 0;
+    context.print();
+    return context.execute();
 }
