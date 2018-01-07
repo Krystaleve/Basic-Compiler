@@ -1,11 +1,9 @@
 #include <stdio.h>  
 #include <stdlib.h> 
  
-#define MAX_LEN 80  
-
 void convert2postfix(char *src, char *dst) {
 	char *psrc, *pdst;
-	char stack[MAX_LEN];
+	char stack[80];
 	int top;
  
 	top = -1;
@@ -76,7 +74,7 @@ void convert2postfix(char *src, char *dst) {
 
 
 int cal(char *src) {
-	int stack[MAX_LEN];
+	int stack[80];
 	int opd1, opd2;
 	int top;
 	char *p, *pre;
@@ -95,17 +93,13 @@ int cal(char *src) {
 		if (*p == '+' || *p == '-' || *p == '*' || *p == '/') {
 			opd2 = stack[top--];
 			opd1 = stack[top--];
-			switch (*p) {
-			case '+':
+			if (*p == '+')
 				stack[++top] = opd1 + opd2;
-				break;
-			case '-':
+			else if (*p == '-')
 				stack[++top] = opd1 - opd2;
-				break;
-			case '*':
+			else if (*p == '*')
 				stack[++top] = opd1*opd2;
-				break;
-			case '/':
+			else if (*p == '/') {
 				//更严格一点，应该处理除数为0的情况  
 				stack[++top] = opd1 / opd2;
 				break;
@@ -117,7 +111,7 @@ int cal(char *src) {
 }
 
 int main() {
-	char str1[MAX_LEN], str2[MAX_LEN];
+	char str1[80], str2[80];
 	int res;
 
 	gets(str1);

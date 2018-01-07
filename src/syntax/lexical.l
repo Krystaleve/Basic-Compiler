@@ -74,9 +74,20 @@ IS			(u|U|l|L)*
     }
 %}
 
-%option noyywrap
-
 %%
+
+"/*"			{
+    char c, prev = 0;
+	while ((c = yyinput()) != 0 && (c != '/' || prev != '*')) {
+		prev = c;
+	}
+	if (c == 0)
+	    yyerror("unterminated comment");
+}
+"//"[^\n]*      ;
+
+"#"[^\n]*       yyerror("unsupported preprocessor directives");
+
 "auto"			return AUTO;
 "break"			return BREAK;
 "case"			return CASE;
@@ -206,7 +217,12 @@ IS			(u|U|l|L)*
 
 . {
     std::cerr << "Error occurred at line " << line_number << ": Unexpected token '" << yytext << "'."<< std::endl;
-    yyterminate();
 }
 
 %%
+
+int yywrap(void)
+{
+	return 1;
+}
+
