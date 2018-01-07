@@ -46,11 +46,9 @@ YacDeclaratorFunction::YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacSy
 llvm::Type *YacDeclaratorFunction::type(llvm::Type *specifier)
 {
     std::vector<llvm::Type *> params;
-    if (m_node) {
-        auto nodes = dynamic_cast<YacSyntaxTreeNodeList *>(m_node);
-        for (auto node: nodes->children)
+    if (m_node)
+        for (auto node: dynamic_cast<YacSyntaxTreeNodeList *>(m_node)->children)
             params.push_back(dynamic_cast<YacDeclaration *>(node)->type);
-    }
     return YacDeclaratorHasParent::type(llvm::FunctionType::get(specifier, params, m_var_arg));
 }
 
@@ -60,13 +58,15 @@ YacDeclaration::YacDeclaration(llvm::Type *type, std::string *identifier)
 
 llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
 {
-    if (identifier == nullptr)
+    if (identifier == nullptr) {
+        std::cerr << "Name omitted" << std::endl;
         return nullptr;
+    }
     if (type->isFunctionTy()) {
         auto function = llvm::Function::Create(llvm::cast<llvm::FunctionType>(type), llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
         return function;
     } else if (context.is_top_level()) {
-        if (!type->isVoidTy()) {
+        if (type->isVoidTy()) {
             std::cerr << "Cannot create void global variable \"" << *identifier << "\"" << std::endl;
             return nullptr;
         }
@@ -79,13 +79,26 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
                                                     init, *identifier);
         context.globals().insert(std::make_pair(*identifier, var));
         return var;
+    } else {
+        if (type->isVoidTy()) {
+            std::cerr << "Cannot create void local variable \"" << *identifier << "\"" << std::endl;
+            return nullptr;
+        }
+        if (context.locals().find(*identifier) != context.locals().end()) {
+            std::cerr << "Local variable \"" << *identifier << "\" already exists" << std::endl;
+            return nullptr;
+        }
+
+        std::cerr << *identifier << std::endl;
+        llvm::Value *var = new llvm::AllocaInst(type, 0, "", context.block());
+        context.locals().insert(std::make_pair(*identifier, var));
+        return var;
     }
-    return nullptr;
 }
 
 
-YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, YacSyntaxTreeNode *body)
-    : type(type), identifier(identifier), body(body) {}
+YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, std::vector<YacDeclaration *> &&params, YacSyntaxTreeNode *body)
+    : type(type), identifier(identifier), params(params), body(body) {}
 
 llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
 {
@@ -94,6 +107,12 @@ llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
     auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
     auto block = llvm::BasicBlock::Create(globalContext, "", function);
     context.push_block(block);
+    auto arg_values = function->arg_begin();
+    for (auto param: params) {
+        auto variable = param->generate(context);
+        if (variable)
+            new llvm::StoreInst(arg_values++, variable, block);
+    }
     body->generate(context);
     if (!block->getTerminator()) {
         if (function->getReturnType()->isVoidTy()) {

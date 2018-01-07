@@ -15,7 +15,7 @@ E			[Ee][+-]?{D}+
 
     unsigned int orig_line = 1;
 
-    int yyerror(const char *error_str) {
+    void yyerror(const char *error_str) {
         std::cerr << "Error occurred at line " << orig_line << ": " << error_str <<std::endl;
     }
 

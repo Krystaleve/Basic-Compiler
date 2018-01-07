@@ -32,12 +32,20 @@ public:
     llvm::Module &module() {
         return *m_module;
     }
+    llvm::BasicBlock* block();
 
-    llvm::BasicBlock* current_block();
+
     void push_block(llvm::BasicBlock* block, bool copy_locals = false);
     void pop_block();
     bool is_top_level() {
         return m_blocks.empty();
+    }
+
+    llvm::Function *function() {
+        return m_function;
+    }
+    void setFunction(llvm::Function *function) {
+        m_function = function;
     }
 
     void print();
@@ -47,6 +55,7 @@ private:
     std::map<std::string, llvm::Value *> m_globals;
 
     std::unique_ptr<llvm::Module> m_module;
+    llvm::Function *m_function;
 };
 
 #endif

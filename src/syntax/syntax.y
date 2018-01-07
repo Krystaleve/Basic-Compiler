@@ -303,8 +303,15 @@ function_definition
         if (!type->isFunctionTy()) {
             std::cerr << "Unexpected compound statement after non-function declaration" << std::endl;
             $$ = new YacSyntaxEmptyNode;
-        } else
-            $$ = new YacFunctionDefinition(llvm::cast<llvm::FunctionType>(type), $2->identifier(), $3);
+        } else {
+            std::vector<YacDeclaration *> params;
+            auto node_list = dynamic_cast<YacDeclaratorFunction *>($2);
+            if (node_list->node()) {
+                for (auto node: dynamic_cast<YacSyntaxTreeNodeList *>(node_list->node())->children)
+                    params.push_back(dynamic_cast<YacDeclaration *>(node));
+            }
+            $$ = new YacFunctionDefinition(llvm::cast<llvm::FunctionType>(type), $2->identifier(), std::move(params), $3);
+        }
     }
     ;
 

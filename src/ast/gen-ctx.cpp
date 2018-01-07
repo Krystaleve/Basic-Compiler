@@ -8,7 +8,7 @@
 llvm::LLVMContext globalContext; // NOLINT
 
 YacCodeGenContext::YacCodeGenContext()
-    : m_module(new llvm::Module("main", globalContext)) {}
+    : m_module(new llvm::Module("main", globalContext)), m_function(nullptr) {}
 
 
 CodeBlock::CodeBlock(llvm::BasicBlock *block)
@@ -25,7 +25,7 @@ std::map<std::string, llvm::Value*>& YacCodeGenContext::globals() {
     return m_globals;
 }
 
-llvm::BasicBlock* YacCodeGenContext::current_block() {
+llvm::BasicBlock* YacCodeGenContext::block() {
     return m_blocks.top().m_block;
 }
 

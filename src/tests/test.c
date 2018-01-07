@@ -1,7 +1,7 @@
 int printf(char *, ...);
 
-int test() {
-
+void test(int i) {
+    float a;
 }
 
 int main() {

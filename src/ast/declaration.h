@@ -52,6 +52,9 @@ class YacDeclaratorFunction: public YacDeclaratorHasParent {
 public:
     explicit YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacSyntaxTreeNode *node = nullptr, bool var_arg = false);
     llvm::Type *type(llvm::Type *specifier) override;
+    YacSyntaxTreeNode *node() {
+        return m_node;
+    }
 private:
     YacSyntaxTreeNode *m_node;
     bool m_var_arg;
@@ -72,9 +75,10 @@ class YacFunctionDefinition: public YacSyntaxTreeNode {
 public:
     llvm::FunctionType *type;
     std::string *identifier;
+    std::vector<YacDeclaration *> params;
     YacSyntaxTreeNode *body;
 
-    explicit YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, YacSyntaxTreeNode *body);
+    explicit YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, std::vector<YacDeclaration *> &&params, YacSyntaxTreeNode *body);
     llvm::Value* generate(YacCodeGenContext &context) override;
 };
 
