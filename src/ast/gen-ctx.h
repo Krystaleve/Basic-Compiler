@@ -28,6 +28,9 @@ public:
 
     std::map<std::string, llvm::Value*>& locals();
     std::map<std::string, llvm::Value*>& globals();
+    llvm::Module &module() {
+        return m_module;
+    }
 
     llvm::BasicBlock* current_block();
     void push_block(llvm::BasicBlock* block, bool copy_locals = true);

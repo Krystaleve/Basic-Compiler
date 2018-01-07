@@ -190,7 +190,7 @@ declarator_list
     ;
 
 declarator
-    : '*' direct_declarator { $$ = new YacDeclaratorPointer($2); }
+    : '*' declarator { $$ = new YacDeclaratorPointer($2); }
     | direct_declarator     { $$ = $1; }
     ;
 

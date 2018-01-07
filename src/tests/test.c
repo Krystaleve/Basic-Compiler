@@ -1,4 +1,4 @@
-int i, adsf;
+int *i[10];
 
 int test(int i)
 {
@@ -7,7 +7,6 @@ int test(int i)
 
 int main()
 {
-    printf("hello, world!\n");
     return 0;
 }
 

@@ -27,6 +27,7 @@ private:
 class YacDeclaratorHasParent: public YacDeclaratorBuilder {
 public:
     explicit YacDeclaratorHasParent(YacDeclaratorBuilder *parent);
+    llvm::Type *type(llvm::Type *specifier) override;
     std::string *identifier() override;
 private:
     YacDeclaratorBuilder *parent;
@@ -47,7 +48,7 @@ private:
 };
 
 class YacDeclaratorFunction: public YacDeclaratorHasParent {
-
+public:
 };
 
 typedef std::vector<YacDeclaratorBuilder *> YacDeclaratorBuilderList;
@@ -57,7 +58,7 @@ public:
     llvm::Type *type;
     std::string *identifier;
 
-    YacDeclaration(llvm::Type *type, std::string *m_identifier);
+    YacDeclaration(llvm::Type *type, std::string *identifier);
     llvm::Value* generate(YacCodeGenContext &context) override;
 };
 
