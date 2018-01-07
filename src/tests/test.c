@@ -1,7 +1,6 @@
 int printf(char *, ...);
 
 void test(int i) {
-    return;
 }
 
 int main() {
