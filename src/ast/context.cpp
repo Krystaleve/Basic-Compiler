@@ -3,7 +3,7 @@
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <iostream>
-#include "gen-ctx.h"
+#include "context.h"
 
 llvm::LLVMContext globalContext; // NOLINT
 

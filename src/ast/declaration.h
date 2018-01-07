@@ -1,5 +1,5 @@
-#ifndef DECLARATOR_H_INCLUDE
-#define DECLARATOR_H_INCLUDE
+#ifndef DECLARATION_H_INCLUDE
+#define DECLARATION_H_INCLUDE
 
 #include <llvm/IR/Type.h>
 #include <llvm/IR/DerivedTypes.h>

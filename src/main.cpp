@@ -2,7 +2,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include "ast/ast.h"
-#include "ast/gen-ctx.h"
+#include "ast/context.h"
 
 using namespace std;
 using namespace llvm;

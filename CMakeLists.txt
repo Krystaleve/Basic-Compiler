@@ -43,8 +43,8 @@ add_executable(yac
         src/ast/ast.cpp
         src/ast/expression.h
         src/ast/expression.cpp
-        src/ast/gen-ctx.h
-        src/ast/gen-ctx.cpp
+        src/ast/context.h
+        src/ast/context.cpp
         src/main.cpp)
 
 llvm_map_components_to_libnames(llvm_libs core executionengine x86asmparser x86asmprinter x86codegen mcjit)

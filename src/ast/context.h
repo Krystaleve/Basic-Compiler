@@ -10,6 +10,7 @@
 #include <memory>
 #include "ast.h"
 
+extern int line_number;
 extern llvm::LLVMContext globalContext;
 
 class CodeBlock {

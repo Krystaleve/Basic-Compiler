@@ -4,9 +4,11 @@
     #include <llvm/IR/LLVMContext.h>
     #include <llvm/IR/DerivedTypes.h>
     #include <llvm/IR/Type.h>
+    #include <llvm/IR/Constants.h>
     #include "../ast/ast.h"
     #include "../ast/declaration.h"
 
+    extern int line_number;
     extern int yylex();
     extern int yyerror(const char *error_str);
 
@@ -16,9 +18,9 @@
 
 %union
 {
-    int integer;
     std::string *string;
     llvm::Type *type;
+    llvm::Value *value;
     YacDeclaratorBuilder *declarator;
     YacDeclaratorBuilderList *declarator_list;
     YacSyntaxTreeNode *node;
@@ -26,8 +28,8 @@
 
 
 %token <string> IDENTIFIER
-%token <integer> INTEGER_CONSTANT
-%token FLOAT_CONSTANT STRING_LITERAL SIZEOF
+%token <value> INTEGER_CONSTANT STRING_LITERAL
+%token FLOAT_CONSTANT SIZEOF
 %token PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -50,7 +52,6 @@
 %start translation_unit
 
 %%
-
 
 primary_expression
 	: IDENTIFIER
@@ -197,7 +198,7 @@ declarator
 direct_declarator
 	: IDENTIFIER                                            { $$ = new YacDeclaratorIdentifier($1); }
 	| '(' declarator ')'                                    { $$ = $2; }
-	| direct_declarator '[' INTEGER_CONSTANT ']'            { $$ = new YacDeclaratorArray($1, $3); }
+	| direct_declarator '[' INTEGER_CONSTANT ']'            { $$ = new YacDeclaratorArray($1, llvm::cast<llvm::ConstantInt>($3)->getLimitedValue()); }
 	| direct_declarator '(' parameter_list ')'              { $$ = new YacDeclaratorFunction($1, $3); }
 	| direct_declarator '(' parameter_list ',' ELLIPSIS ')' { $$ = new YacDeclaratorFunction($1, $3, true); }
 	| direct_declarator '(' ')'                             { $$ = new YacDeclaratorFunction($1); }
@@ -223,7 +224,7 @@ abstract_declarator
 direct_abstract_declarator
 	: '(' abstract_declarator ')'                                    { $$ = $2; }
 	| '[' ']'                                                        { $$ = new YacDeclaratorPointer(new YacDeclaratorIdentifier); }
-	| '[' INTEGER_CONSTANT ']'                                       { $$ = new YacDeclaratorArray(new YacDeclaratorIdentifier, $2); }
+	| '[' INTEGER_CONSTANT ']'                                       { $$ = new YacDeclaratorArray(new YacDeclaratorIdentifier, llvm::cast<llvm::ConstantInt>($2)->getLimitedValue()); }
 	| direct_abstract_declarator '[' ']'                             { $$ = new YacDeclaratorPointer($1); }
 	| '(' ')'                                                        { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier); }
 	| '(' parameter_list ')'                                         { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2); }
@@ -301,7 +302,7 @@ function_definition
     : type_specifier declarator compound_statement {
         auto type = $2->type($1);
         if (!type->isFunctionTy()) {
-            std::cerr << "Unexpected compound statement after non-function declaration" << std::endl;
+            std::cerr << "Error occurred at line " << line_number << ": " << "Unexpected compound statement after non-function declaration" << std::endl;
             $$ = new YacSyntaxEmptyNode;
         } else {
             std::vector<YacDeclaration *> params;

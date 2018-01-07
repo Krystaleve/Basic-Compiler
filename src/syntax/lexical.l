@@ -2,25 +2,75 @@ D			[0-9]
 L			[a-zA-Z_]
 H			[a-fA-F0-9]
 E			[Ee][+-]?{D}+
+IS			(u|U|l|L)*
 
 %{
     #include <string>
     #include <iostream>
+    #include <cctype>
     #include <llvm/IR/LLVMContext.h>
     #include <llvm/IR/Type.h>
+    #include <llvm/IR/Constants.h>
     #include "../ast/ast.h"
     #include "../ast/declaration.h"
 
     #include "syntax.h"
 
-    unsigned int orig_line = 1;
+    extern llvm::LLVMContext globalContext;
+    unsigned int line_number = 1;
 
     void yyerror(const char *error_str) {
-        std::cerr << "Error occurred at line " << orig_line << ": " << error_str <<std::endl;
+        std::cerr << "Error occurred at line " << line_number << ": " << error_str <<std::endl;
     }
 
-    #define SAVE_TOKEN yylval.string = new std::string(yytext, yyleng)
-    #define SAVE_INTEGER yylval.integer = std::stoi(std::string(yytext, yyleng))
+    // end - begin must be greater than 1
+    int parseEscape(const char *str, int begin, int end, char &result) {
+        if (str[begin++] != '\\') {
+            result = str[begin - 1];
+            return begin;
+        }
+        if (begin == end) {
+            std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+            result = '\\';
+            return begin;
+        }
+        switch (str[begin++]) {
+            case 'a': result = '\a'; return begin;
+            case 'b': result = '\b'; return begin;
+            case 'f': result = '\f'; return begin;
+            case 'n': result = '\n'; return begin;
+            case 'r': result = '\r'; return begin;
+            case 't': result = '\t'; return begin;
+            case 'v': result = '\v'; return begin;
+            case 'x':
+                if (begin == end || !isxdigit(str[begin])) {
+                    std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+                    result = 'x';
+                } else {
+                    std::string value;
+                    value.push_back(str[begin++]);
+                    if (begin != end && isxdigit(str[begin]))
+                        value.push_back(str[begin++]);
+                    result = std::stoi(value, nullptr, 16);
+                }
+                return begin;
+            case '\'': case '\"': case '\?': case '\\':
+                result = str[begin - 1];
+                return begin;
+            default:
+                if ('0' <= str[begin - 1] && str[begin - 1] <= '7') {
+                    std::string value;
+                    value.push_back(str[begin - 1]);
+                    for (int i = 0; i < 2 && begin != end && '0' <= str[begin] && str[begin] <= '7'; ++i)
+                        value.push_back(str[begin++]);
+                    result = std::stoi(value, nullptr, 8);
+                } else {
+                    std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+                    result = str[begin - 1];
+                }
+                return begin;
+        }
+    }
 %}
 
 %option noyywrap
@@ -59,13 +109,49 @@ E			[Ee][+-]?{D}+
 "volatile"		return VOLATILE;
 "while"			return WHILE;
 
-0[xX]{H}+		{ SAVE_INTEGER; return INTEGER_CONSTANT; }
-0[0-7]*	    	{ SAVE_INTEGER; return INTEGER_CONSTANT; }
-[1-9]{D}*		{ SAVE_INTEGER; return INTEGER_CONSTANT; }
+{L}({L}|{D})*		{
+    yylval.string = new std::string(yytext, yyleng);
+    return IDENTIFIER;
+}
 
-{L}({L}|{D})*		{ SAVE_TOKEN; return IDENTIFIER; }
+(0[xX]{H}+|0[0-7]*|[1-9]{D}*){IS}? {
+    bool isSigned = true, isLong = false;
+    std::string input(yytext, yyleng);
+    while (true) {
+        if (input.back() == 'u' || input.back() == 'U')
+            isSigned = false;
+        else if (input.back() == 'l' || input.back() == 'L')
+            isLong = true;
+        else
+            break;
+        input.pop_back();
+    }
+    if (isLong)
+        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), std::stol(input), isSigned);
+    else
+        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), std::stoi(input), isSigned);
+    return INTEGER_CONSTANT;
+}
 
-\"(\\.|[^\\"])*\"	return STRING_LITERAL;
+'(\\.|[^\\'\n])+'	{
+    char ch;
+    if (parseEscape(yytext, 1, yyleng - 1, ch) != yyleng - 1)
+        std::cerr << "Error occurred at line " << line_number << ": " << "Multi-character character constant" << std::endl;
+    yylval.value = llvm::ConstantInt::get(llvm::Type::getInt8Ty(globalContext), ch, true);
+    return INTEGER_CONSTANT;
+}
+
+\"(\\.|[^\\"])*\"	{
+    std::string value;
+    char ch;
+    int begin = 1, end = yyleng - 1;
+    while (begin != end) {
+        begin = parseEscape(yytext, begin, end, ch);
+        value.push_back(ch);
+    }
+    yylval.value = llvm::ConstantDataArray::getString(globalContext, value);
+    return STRING_LITERAL;
+}
 
 "..."			return ELLIPSIS;
 ">>="			return RIGHT_ASSIGN;
@@ -115,10 +201,10 @@ E			[Ee][+-]?{D}+
 "?"			    return '?';
 
 [ \t\v\f]		;
-"\n"            ++orig_line;
+"\n"            ++line_number;
 
 . {
-    std::cerr << "Error occurred at line " << orig_line << ": Unexpected token '" << yytext << "'."<< std::endl;
+    std::cerr << "Error occurred at line " << line_number << ": Unexpected token '" << yytext << "'."<< std::endl;
     yyterminate();
 }
 

@@ -2,7 +2,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/GlobalVariable.h>
 #include "declaration.h"
-#include "gen-ctx.h"
+#include "context.h"
 
 YacDeclaratorIdentifier::YacDeclaratorIdentifier(std::string *identifier)
     : m_identifier(identifier) {}
@@ -63,7 +63,13 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
         return nullptr;
     }
     if (type->isFunctionTy()) {
+        auto &scope = context.is_top_level() ? context.globals() : context.locals();
+        if (scope.find(*identifier) != scope.end()) {
+            std::cerr << "Identifier \"" << *identifier << "\" already exists" << std::endl;
+            return nullptr;
+        }
         auto function = llvm::Function::Create(llvm::cast<llvm::FunctionType>(type), llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
+        scope.insert(std::make_pair(*identifier, function));
         return function;
     } else if (context.is_top_level()) {
         if (type->isVoidTy()) {
@@ -71,7 +77,7 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
             return nullptr;
         }
         if (context.globals().find(*identifier) != context.globals().end()) {
-            std::cerr << "Global variable \"" << *identifier << "\" already exists" << std::endl;
+            std::cerr << "Global identifier \"" << *identifier << "\" already exists" << std::endl;
             return nullptr;
         }
         llvm::Constant *init = llvm::Constant::getNullValue(type);
@@ -85,11 +91,10 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
             return nullptr;
         }
         if (context.locals().find(*identifier) != context.locals().end()) {
-            std::cerr << "Local variable \"" << *identifier << "\" already exists" << std::endl;
+            std::cerr << "Local identifier \"" << *identifier << "\" already exists" << std::endl;
             return nullptr;
         }
 
-        std::cerr << *identifier << std::endl;
         llvm::Value *var = new llvm::AllocaInst(type, 0, "", context.block());
         context.locals().insert(std::make_pair(*identifier, var));
         return var;
@@ -106,6 +111,7 @@ llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
         return nullptr;
     auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
     auto block = llvm::BasicBlock::Create(globalContext, "", function);
+    context.setFunction(function);
     context.push_block(block);
     auto arg_values = function->arg_begin();
     for (auto param: params) {
@@ -124,5 +130,6 @@ llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
         }
     }
     context.pop_block();
+    context.setFunction(nullptr);
     return function;
 }
