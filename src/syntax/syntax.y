@@ -9,6 +9,7 @@
     #include "../ast/declaration.h"
     #include "../ast/expression.h"
     #include "../ast/statement.h"
+    #include "../ast/type.h"
 
     extern int line_number;
     extern int yylex();
@@ -25,6 +26,7 @@
     llvm::Value *value;
     YacDeclaratorBuilder *declarator;
     YacDeclaratorBuilderList *declarator_list;
+    YacExpression *expression;
     YacSyntaxTreeNode *node;
 }
 
@@ -46,9 +48,9 @@
 %type <type> type_specifier
 %type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
 %type <declarator_list> declarator_list
-%type <node> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
-%type <node> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
-%type <node> logical_and_expression logical_or_expression conditional_expression assignment_expression
+%type <expression> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
+%type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
+%type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression
 %type <node> statement compound_statement statement_list declaration_list jump_statement expression_statement
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
@@ -59,21 +61,21 @@
 %%
 
 primary_expression
-	: IDENTIFIER         { $$ = new YacSyntaxEmptyNode; } // TODO
+	: IDENTIFIER         { $$ = new YacExpression; } // TODO
 	| INTEGER_CONSTANT   { $$ = new YacPrimaryExpression($1); }
-	| FLOAT_CONSTANT     { $$ = new YacSyntaxEmptyNode; } // TODO
+	| FLOAT_CONSTANT     { $$ = new YacExpression; } // TODO
 	| STRING_LITERAL     { $$ = new YacPrimaryExpression($1); }
 	| '(' expression ')' { $$ = $2; }
 	;
 
 postfix_expression
 	: primary_expression                                  { $$ = $1; }
-	| postfix_expression '[' expression ']'               { $$ = new YacSyntaxEmptyNode; } // TODO
-	| postfix_expression '(' ')'                          { $$ = new YacSyntaxEmptyNode; } // TODO
-	| postfix_expression '(' argument_expression_list ')' { $$ = new YacSyntaxEmptyNode; } // TODO
-	| postfix_expression '.' IDENTIFIER                   { $$ = new YacSyntaxEmptyNode; } // TODO
-	| postfix_expression INC_OP                           { $$ = new YacSyntaxEmptyNode; } // TODO
-	| postfix_expression DEC_OP                           { $$ = new YacSyntaxEmptyNode; } // TODO
+	| postfix_expression '[' expression ']'               { $$ = new YacExpression; } // TODO
+	| postfix_expression '(' ')'                          { $$ = new YacExpression; } // TODO
+	| postfix_expression '(' argument_expression_list ')' { $$ = new YacExpression; } // TODO
+	| postfix_expression '.' IDENTIFIER                   { $$ = new YacExpression; } // TODO
+	| postfix_expression INC_OP                           { $$ = new YacExpression; } // TODO
+	| postfix_expression DEC_OP                           { $$ = new YacExpression; } // TODO
 	;
 
 argument_expression_list
@@ -83,9 +85,9 @@ argument_expression_list
 
 unary_expression
 	: postfix_expression              { $$ = $1; }
-	| INC_OP unary_expression         { $$ = new YacSyntaxEmptyNode; } // TODO
-	| DEC_OP unary_expression         { $$ = new YacSyntaxEmptyNode; } // TODO
-	| unary_operator unary_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| INC_OP unary_expression         { $$ = new YacExpression; } // TODO
+	| DEC_OP unary_expression         { $$ = new YacExpression; } // TODO
+	| unary_operator unary_expression { $$ = new YacExpression; } // TODO
 	;
 
 unary_operator
@@ -99,75 +101,75 @@ unary_operator
 
 multiplicative_expression
 	: unary_expression                               { $$ = $1; }
-	| multiplicative_expression '*' unary_expression { $$ = new YacSyntaxEmptyNode; } // TODO
-	| multiplicative_expression '/' unary_expression { $$ = new YacSyntaxEmptyNode; } // TODO
-	| multiplicative_expression '%' unary_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| multiplicative_expression '*' unary_expression { $$ = new YacExpression; } // TODO
+	| multiplicative_expression '/' unary_expression { $$ = new YacExpression; } // TODO
+	| multiplicative_expression '%' unary_expression { $$ = new YacExpression; } // TODO
 	;
 
 additive_expression
 	: multiplicative_expression                         { $$ = $1; }
-	| additive_expression '+' multiplicative_expression { $$ = new YacSyntaxEmptyNode; } // TODO
-	| additive_expression '-' multiplicative_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| additive_expression '+' multiplicative_expression { $$ = new YacExpression; } // TODO
+	| additive_expression '-' multiplicative_expression { $$ = new YacExpression; } // TODO
 	;
 
 shift_expression
 	: additive_expression                           { $$ = $1; }
-	| shift_expression LEFT_OP additive_expression  { $$ = new YacSyntaxEmptyNode; } // TODO
-	| shift_expression RIGHT_OP additive_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| shift_expression LEFT_OP additive_expression  { $$ = new YacExpression; } // TODO
+	| shift_expression RIGHT_OP additive_expression { $$ = new YacExpression; } // TODO
 	;
 
 relational_expression
 	: shift_expression                             { $$ = $1; }
-	| relational_expression '<' shift_expression   { $$ = new YacSyntaxEmptyNode; } // TODO
-	| relational_expression '>' shift_expression   { $$ = new YacSyntaxEmptyNode; } // TODO
-	| relational_expression LE_OP shift_expression { $$ = new YacSyntaxEmptyNode; } // TODO
-	| relational_expression GE_OP shift_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| relational_expression '<' shift_expression   { $$ = new YacExpression; } // TODO
+	| relational_expression '>' shift_expression   { $$ = new YacExpression; } // TODO
+	| relational_expression LE_OP shift_expression { $$ = new YacExpression; } // TODO
+	| relational_expression GE_OP shift_expression { $$ = new YacExpression; } // TODO
 	;
 
 equality_expression
 	: relational_expression                           { $$ = $1; }
-	| equality_expression EQ_OP relational_expression { $$ = new YacSyntaxEmptyNode; } // TODO
-	| equality_expression NE_OP relational_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| equality_expression EQ_OP relational_expression { $$ = new YacExpression; } // TODO
+	| equality_expression NE_OP relational_expression { $$ = new YacExpression; } // TODO
 	;
 
 and_expression
 	: equality_expression                    { $$ = $1; }
-	| and_expression '&' equality_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| and_expression '&' equality_expression { $$ = new YacExpression; } // TODO
 	;
 
 exclusive_or_expression
 	: and_expression                             { $$ = $1; }
-	| exclusive_or_expression '^' and_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| exclusive_or_expression '^' and_expression { $$ = new YacExpression; } // TODO
 	;
 
 inclusive_or_expression
 	: exclusive_or_expression                             { $$ = $1; }
-	| inclusive_or_expression '|' exclusive_or_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| inclusive_or_expression '|' exclusive_or_expression { $$ = new YacExpression; } // TODO
 	;
 
 logical_and_expression
 	: inclusive_or_expression                               { $$ = $1; }
-	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacExpression; } // TODO
 	;
 
 logical_or_expression
 	: logical_and_expression                             { $$ = $1; }
-	| logical_or_expression OR_OP logical_and_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| logical_or_expression OR_OP logical_and_expression { $$ = new YacExpression; } // TODO
 	;
 
 conditional_expression
 	: logical_or_expression                                           { $$ = $1; }
-	| logical_or_expression '?' expression ':' conditional_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| logical_or_expression '?' expression ':' conditional_expression { $$ = new YacExpression; } // TODO
 	;
 
 assignment_expression
 	: conditional_expression                     { $$ = $1; }
-	| unary_expression '=' assignment_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+	| unary_expression '=' assignment_expression { $$ = new YacExpression; } // TODO
 	;
 
 expression
     : assignment_expression                { $$ = $1; }
-    | expression ',' assignment_expression { $$ = new YacSyntaxEmptyNode; } // TODO
+    | expression ',' assignment_expression { $$ = new YacExpression; } // TODO
     ;
 
 declaration
@@ -203,6 +205,7 @@ declarator
 direct_declarator
 	: IDENTIFIER                                            { $$ = new YacDeclaratorIdentifier($1); }
 	| '(' declarator ')'                                    { $$ = $2; }
+	| direct_declarator '[' ']'                             { $$ = new YacDeclaratorArray($1, 0); }
 	| direct_declarator '[' INTEGER_CONSTANT ']'            { $$ = new YacDeclaratorArray($1, llvm::cast<llvm::ConstantInt>($3)->getLimitedValue()); }
 	| direct_declarator '(' parameter_list ')'              { $$ = new YacDeclaratorFunction($1, $3); }
 	| direct_declarator '(' parameter_list ',' ELLIPSIS ')' { $$ = new YacDeclaratorFunction($1, $3, true); }
@@ -215,9 +218,9 @@ parameter_list
 	;
 
 parameter_declaration
-	: type_specifier declarator          { $$ = new YacDeclaration($2->type($1), $2->identifier()); }
-	| type_specifier abstract_declarator { $$ = new YacDeclaration($2->type($1), $2->identifier()); }
-	| type_specifier                     { $$ = new YacDeclaration($1); }
+	: type_specifier declarator          { $$ = new YacDeclaration(castToParameterType($2->type($1)), $2->identifier()); }
+	| type_specifier abstract_declarator { $$ = new YacDeclaration(castToParameterType($2->type($1)), $2->identifier()); }
+	| type_specifier                     { $$ = new YacDeclaration(castToParameterType($1)); }
 	;
 
 abstract_declarator
@@ -228,9 +231,9 @@ abstract_declarator
 
 direct_abstract_declarator
 	: '(' abstract_declarator ')'                                    { $$ = $2; }
-	| '[' ']'                                                        { $$ = new YacDeclaratorPointer(new YacDeclaratorIdentifier); }
+	| '[' ']'                                                        { $$ = new YacDeclaratorArray(new YacDeclaratorIdentifier, 0); }
 	| '[' INTEGER_CONSTANT ']'                                       { $$ = new YacDeclaratorArray(new YacDeclaratorIdentifier, llvm::cast<llvm::ConstantInt>($2)->getLimitedValue()); }
-	| direct_abstract_declarator '[' ']'                             { $$ = new YacDeclaratorPointer($1); }
+	| direct_abstract_declarator '[' ']'                             { $$ = new YacDeclaratorArray($1, 0); }
 	| '(' ')'                                                        { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier); }
 	| '(' parameter_list ')'                                         { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2); }
 	| '(' parameter_list ',' ELLIPSIS ')'                            { $$ = new YacDeclaratorFunction(new YacDeclaratorIdentifier, $2, true); }

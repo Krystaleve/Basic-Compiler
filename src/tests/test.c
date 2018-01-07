@@ -1,7 +1,6 @@
 int printf(char *, ...);
 
-void test(int i) {
-}
+void test(int (*a)());
 
 int main() {
     printf("hello, world!\n");

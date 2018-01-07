@@ -13,6 +13,7 @@ IS			(u|U|l|L)*
     #include <llvm/IR/Constants.h>
     #include "../ast/ast.h"
     #include "../ast/declaration.h"
+    #include "../ast/expression.h"
 
     #include "syntax.h"
 

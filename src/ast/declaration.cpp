@@ -1,8 +1,10 @@
 #include <iostream>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/Support/raw_ostream.h>
 #include "declaration.h"
 #include "context.h"
+#include "type.h"
 
 YacDeclaratorIdentifier::YacDeclaratorIdentifier(std::string *identifier)
     : m_identifier(identifier) {}
@@ -59,46 +61,33 @@ YacDeclaration::YacDeclaration(llvm::Type *type, std::string *identifier)
 llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
 {
     if (identifier == nullptr) {
-        std::cerr << "Name omitted" << std::endl;
+        std::cerr << "name omitted" << std::endl;
         return nullptr;
     }
-    if (type->isFunctionTy()) {
-        auto &scope = context.is_top_level() ? context.globals() : context.locals();
-        if (scope.find(*identifier) != scope.end()) {
-            std::cerr << "Identifier \"" << *identifier << "\" already exists" << std::endl;
-            return nullptr;
-        }
-        auto function = llvm::Function::Create(llvm::cast<llvm::FunctionType>(type), llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
-        scope.insert(std::make_pair(*identifier, function));
-        return function;
-    } else if (context.is_top_level()) {
-        if (type->isVoidTy()) {
-            std::cerr << "Cannot create void global variable \"" << *identifier << "\"" << std::endl;
-            return nullptr;
-        }
-        if (context.globals().find(*identifier) != context.globals().end()) {
-            std::cerr << "Global identifier \"" << *identifier << "\" already exists" << std::endl;
-            return nullptr;
-        }
-        llvm::Constant *init = llvm::Constant::getNullValue(type);
-        llvm::Value *var = new llvm::GlobalVariable(context.module(), type, false, llvm::GlobalVariable::CommonLinkage,
-                                                    init, *identifier);
-        context.globals().insert(std::make_pair(*identifier, var));
-        return var;
-    } else {
-        if (type->isVoidTy()) {
-            std::cerr << "Cannot create void local variable \"" << *identifier << "\"" << std::endl;
-            return nullptr;
-        }
-        if (context.locals().find(*identifier) != context.locals().end()) {
-            std::cerr << "Local identifier \"" << *identifier << "\" already exists" << std::endl;
-            return nullptr;
-        }
-
-        llvm::Value *var = new llvm::AllocaInst(type, 0, "", context.block());
-        context.locals().insert(std::make_pair(*identifier, var));
-        return var;
+    auto &scope = context.is_top_level() ? context.globals() : context.locals();
+    if (scope.find(*identifier) != scope.end()) {
+        std::cerr << "redefinition of \'" << *identifier << "\'" << std::endl;
+        return nullptr;
     }
+    llvm::Value *var;
+    if (type->isFunctionTy()) {
+        auto function_type = llvm::cast<llvm::FunctionType>(type);
+        if (!isValidFunctionType(function_type))
+            return nullptr;
+        var = llvm::Function::Create(function_type, llvm::GlobalValue::ExternalLinkage,
+                                     *identifier, &context.module());
+    } else {
+        if (!isValidVariableType(type))
+            return nullptr;
+        if (context.is_top_level()) {
+            llvm::Constant *init = llvm::Constant::getNullValue(type);
+            var = new llvm::GlobalVariable(context.module(), type, false, llvm::GlobalVariable::CommonLinkage,
+                                           init, *identifier);
+        } else
+            var = new llvm::AllocaInst(type, 0, "", context.block());
+    }
+    scope.insert(std::make_pair(*identifier, var));
+    return var;
 }
 
 
@@ -107,7 +96,8 @@ YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, std::stri
 
 llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
 {
-    if (identifier == nullptr)
+    assert(identifier);
+    if (!isValidFunctionType(type))
         return nullptr;
     auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
     auto block = llvm::BasicBlock::Create(globalContext, "", function);
