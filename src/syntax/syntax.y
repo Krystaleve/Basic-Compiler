@@ -7,6 +7,7 @@
     #include <llvm/IR/Constants.h>
     #include "../ast/ast.h"
     #include "../ast/declaration.h"
+    #include "../ast/statement.h"
 
     extern int line_number;
     extern int yylex();
@@ -44,7 +45,8 @@
 %type <type> type_specifier
 %type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
 %type <declarator_list> declarator_list
-%type <node> statement compound_statement statement_list declaration_list
+%type <node> expression
+%type <node> statement compound_statement statement_list declaration_list jump_statement
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
 %error-verbose
@@ -161,8 +163,8 @@ assignment_expression
 	;
 
 expression
-    : assignment_expression
-    | expression ',' assignment_expression
+    : assignment_expression                { $$ = new YacSyntaxEmptyNode; } // TODO
+    | expression ',' assignment_expression { $$ = new YacSyntaxEmptyNode; } // TODO
     ;
 
 declaration
@@ -239,7 +241,7 @@ statement
 	| expression_statement { $$ = new YacSyntaxEmptyNode; } // TODO
 	| selection_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
 	| iteration_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
-	| jump_statement       { $$ = new YacSyntaxEmptyNode; } // TODO
+	| jump_statement       { $$ = $1; }
 	;
 
 compound_statement
@@ -282,10 +284,10 @@ iteration_statement
 	;
 
 jump_statement
-	: CONTINUE ';'
-	| BREAK ';'
-	| RETURN ';'
-	| RETURN expression ';'
+	: CONTINUE ';'          { $$ = new YacSyntaxEmptyNode; } // TODO
+	| BREAK ';'             { $$ = new YacSyntaxEmptyNode; } // TODO
+	| RETURN ';'            { $$ = new YacReturnStatement; }
+	| RETURN expression ';' { $$ = new YacReturnStatement($2); }
 	;
 
 translation_unit

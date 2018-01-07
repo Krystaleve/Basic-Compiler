@@ -37,12 +37,14 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_executable(yac
         ${FlexOutput}
         ${BisonOutput}
-        src/ast/declaration.h
-        src/ast/declaration.cpp
         src/ast/ast.h
         src/ast/ast.cpp
+        src/ast/declaration.h
+        src/ast/declaration.cpp
         src/ast/expression.h
         src/ast/expression.cpp
+        src/ast/statement.h
+        src/ast/statement.cpp
         src/ast/context.h
         src/ast/context.cpp
         src/main.cpp)
