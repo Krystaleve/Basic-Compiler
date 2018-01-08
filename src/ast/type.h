@@ -10,6 +10,8 @@ bool isValidFunctionType(llvm::FunctionType *type);
 
 llvm::Type *castToParameterType(llvm::Type *type);
 
-llvm::Value *castToType(llvm::Value *value, llvm::Type *type, YacCodeGenContext &context);
+llvm::Value *castValueToType(llvm::Value *value, llvm::Type *type, YacCodeGenContext &context);
+
+llvm::Value *castLvalueToRvalue(llvm::Value *value, YacCodeGenContext &context);
 
 #endif

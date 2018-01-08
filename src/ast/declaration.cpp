@@ -115,7 +115,8 @@ llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
         if (variable)
             new llvm::StoreInst(arg_values++, variable, block);
     }
-    body->generate(context);
+    if (body)
+        body->generate(context);
     if (!block->getTerminator()) {
         if (function->getReturnType()->isVoidTy()) {
             llvm::ReturnInst::Create(globalContext, block);

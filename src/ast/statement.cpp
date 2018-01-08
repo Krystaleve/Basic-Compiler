@@ -19,7 +19,8 @@ llvm::Value *YacReturnStatement::generate(YacCodeGenContext &context)
             auto value = expression->generate(context);
             if (!value)
                 return nullptr;
-            return llvm::ReturnInst::Create(globalContext, castToType(value, context.function()->getReturnType(), context), context.block());
+            return llvm::ReturnInst::Create(globalContext,
+                                            castValueToType(value, context.function()->getReturnType(), context), context.block());
         }
         std::cerr << "Void function should not return a value" << std::endl;
     }

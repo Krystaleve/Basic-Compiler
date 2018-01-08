@@ -51,9 +51,9 @@
 %type <declarator_list> declarator_list
 %type <expression> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
 %type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
-%type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression
+%type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression expression_statement
 %type <expression_list> argument_expression_list
-%type <node> statement compound_statement statement_list declaration_list jump_statement expression_statement
+%type <node> statement compound_statement statement_list declaration_list jump_statement
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
 %error-verbose
@@ -88,12 +88,12 @@ unary_expression
 	: postfix_expression              { $$ = $1; }
 	| INC_OP unary_expression         { $$ = new YacExpression; } // TODO
 	| DEC_OP unary_expression         { $$ = new YacExpression; } // TODO
+	| '&' unary_expression            { $$ = new YacExpression; } // TODO
 	| unary_operator unary_expression { $$ = new YacExpression; } // TODO
 	;
 
 unary_operator
-	: '&'
-	| '*'
+	: '*'
 	| '+'
 	| '-'
 	| '~'
@@ -164,8 +164,22 @@ conditional_expression
 	;
 
 assignment_expression
-	: conditional_expression                     { $$ = $1; }
-	| unary_expression '=' assignment_expression { $$ = new YacExpression; } // TODO
+	: conditional_expression                                     { $$ = $1; }
+	| unary_expression '=' assignment_expression                 { $$ = new YacAssignmentExpression($1, $3); }
+	| unary_expression assignment_operator assignment_expression { $$ = new YacExpression; } // TODO
+	;
+
+assignment_operator
+	: MUL_ASSIGN
+	| DIV_ASSIGN
+	| MOD_ASSIGN
+	| ADD_ASSIGN
+	| SUB_ASSIGN
+	| LEFT_ASSIGN
+	| RIGHT_ASSIGN
+	| AND_ASSIGN
+	| XOR_ASSIGN
+	| OR_ASSIGN
 	;
 
 expression
@@ -252,7 +266,7 @@ statement
 	;
 
 compound_statement
-	: '{' '}'                                 { $$ = new YacSyntaxEmptyNode; }
+	: '{' '}'                                 { $$ = nullptr; }
 	| '{' statement_list '}'                  { $$ = $2; }
 	| '{' declaration_list '}'                { $$ = $2; }
 	| '{' declaration_list statement_list '}' {
@@ -274,7 +288,7 @@ statement_list
 	;
 
 expression_statement
-	: ';'             { $$ = new YacSyntaxEmptyNode; }
+	: ';'             { $$ = nullptr; }
 	| expression ';'  { $$ = $1; }
 	;
 

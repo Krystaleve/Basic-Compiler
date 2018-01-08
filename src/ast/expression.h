@@ -10,14 +10,16 @@ public:
     llvm::Value* generate(YacCodeGenContext &context) override {
         return generateRvalue(context);
     }
-    // can return pointer
+    // can return pointer to integer, float, pointer (aka pointer to first class)
     // return nullptr if error
     virtual llvm::Value *generateLvalue(YacCodeGenContext &context) {
+        std::cerr << "expression is not lvalue" << std::endl;
         return nullptr;
     }
     // can return integer, float, pointer (aka first class)
     // return nullptr if error
     virtual llvm::Value *generateRvalue(YacCodeGenContext &context) {
+        std::cerr << "expression is not rvalue" << std::endl;
         return nullptr;
     }
 };
@@ -48,6 +50,14 @@ public:
     llvm::FunctionType *getFunc(llvm::Value *function, YacCodeGenContext &context);
     llvm::Value *doGenerate(llvm::Value *function, llvm::FunctionType *function_type, YacCodeGenContext &context);
     llvm::Value *generate(YacCodeGenContext &context) override;
+    llvm::Value *generateRvalue(YacCodeGenContext &context) override;
+};
+
+class YacAssignmentExpression: public YacExpression {
+public:
+    YacExpression *left, *right;
+    explicit YacAssignmentExpression(YacExpression *left, YacExpression *right);
+    llvm::Value *generateLvalue(YacCodeGenContext &context) override;
     llvm::Value *generateRvalue(YacCodeGenContext &context) override;
 };
 

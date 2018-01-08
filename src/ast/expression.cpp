@@ -41,24 +41,24 @@ llvm::Value *YacIdentifierExpression::find(YacCodeGenContext &context) {
 }
 
 llvm::Value *YacIdentifierExpression::generateLvalue(YacCodeGenContext &context) {
-    return find(context);
+    auto variable = find(context);
+    if (variable) {
+        auto value_type = llvm::cast<llvm::PointerType>(variable->getType())->getElementType();
+        if (value_type->isFunctionTy()) {
+            std::cerr << "cannot use function as lvalue" << std::endl;
+            return nullptr;
+        }
+        if (value_type->isArrayTy()) {
+            std::cerr << "cannot use array as lvalue" << std::endl;
+            return nullptr;
+        }
+    }
+    return variable;
 }
 
 llvm::Value *YacIdentifierExpression::generateRvalue(YacCodeGenContext &context)
 {
-    auto variable = find(context);
-    if (variable) {
-        auto value_type = llvm::cast<llvm::PointerType>(variable->getType())->getElementType();
-        if (value_type->isFunctionTy())
-            return variable;
-        if (value_type->isArrayTy())
-            return llvm::GetElementPtrInst::CreateInBounds(variable, {
-                    llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), 0),
-                    llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), 0)
-            }, "", context.block());
-        return new llvm::LoadInst(variable, "", context.block());
-    }
-    return variable;
+    return castLvalueToRvalue(find(context), context);
 }
 
 
@@ -93,7 +93,7 @@ llvm::Value *YacCallExpression::doGenerate(llvm::Value *function, llvm::Function
             if (!value)
                 return nullptr;
             if (iter != params.end())
-                arguments.push_back(castToType(value, *iter++, context));
+                arguments.push_back(castValueToType(value, *iter++, context));
             else
                 arguments.push_back(value);
         }
@@ -110,7 +110,7 @@ llvm::Value *YacCallExpression::doGenerate(llvm::Value *function, llvm::Function
                 auto value = arg->generateRvalue(context);
                 if (!value)
                     return nullptr;
-                arguments.push_back(castToType(value, *iter++, context));
+                arguments.push_back(castValueToType(value, *iter++, context));
             }
     }
     return llvm::CallInst::Create(function, arguments, "", context.block());
@@ -138,5 +138,23 @@ llvm::Value *YacCallExpression::generateRvalue(YacCodeGenContext &context) {
         return nullptr;
     }
     return doGenerate(function, function_type, context);
+}
+
+YacAssignmentExpression::YacAssignmentExpression(YacExpression *left, YacExpression *right)
+    : left(left), right(right) {}
+
+llvm::Value *YacAssignmentExpression::generateLvalue(YacCodeGenContext &context) {
+    auto left_value = left->generateLvalue(context);
+    if (!left_value)
+        return nullptr;
+    auto right_value = right->generateRvalue(context);
+    if (!right_value)
+        return nullptr;
+    new llvm::StoreInst(castValueToType(right_value, llvm::cast<llvm::PointerType>(left_value->getType())->getElementType(), context), left_value, context.block());
+    return left_value;
+}
+
+llvm::Value *YacAssignmentExpression::generateRvalue(YacCodeGenContext &context) {
+    return castLvalueToRvalue(generateLvalue(context), context);
 }
 

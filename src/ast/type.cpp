@@ -1,6 +1,7 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Constants.h>
 #include <iostream>
 #include "type.h"
 
@@ -56,10 +57,30 @@ llvm::Type *castToParameterType(llvm::Type *type)
     return type;
 }
 
-llvm::Value *castToType(llvm::Value *value, llvm::Type *type, YacCodeGenContext &context)
+llvm::Value *castValueToType(llvm::Value *value, llvm::Type *type, YacCodeGenContext &context)
 {
     if (value->getType() == type)
         return value;
     auto code = llvm::CastInst::getCastOpcode(value, true, type, true);
     return llvm::CastInst::Create(code, value, type, "", context.block());
+}
+
+llvm::Value *castLvalueToRvalue(llvm::Value *value, YacCodeGenContext &context) {
+
+    if (!value)
+        return nullptr;
+    assert(value->getType()->isPointerTy());
+    auto value_type = llvm::cast<llvm::PointerType>(value->getType())->getElementType();
+    if (value_type->isFunctionTy())
+        return value;
+    if (value_type->isArrayTy())
+        return llvm::GetElementPtrInst::CreateInBounds(value, {
+                llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), 0),
+                llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), 0)
+        }, "", context.block());
+    if (value_type->isVoidTy()) {
+        std::cerr << "access void type" << std::endl;
+        return nullptr;
+    }
+    return new llvm::LoadInst(value, "", context.block());
 }
