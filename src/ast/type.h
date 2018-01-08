@@ -14,4 +14,6 @@ llvm::Value *castValueToType(llvm::Value *value, llvm::Type *type, YacCodeGenCon
 
 llvm::Value *castLvalueToRvalue(llvm::Value *value, YacCodeGenContext &context);
 
+bool isArithmeticType(llvm::Type *type);
+
 #endif

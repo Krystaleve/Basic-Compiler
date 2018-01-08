@@ -84,3 +84,7 @@ llvm::Value *castLvalueToRvalue(llvm::Value *value, YacCodeGenContext &context) 
     }
     return new llvm::LoadInst(value, "", context.block());
 }
+
+bool isArithmeticType(llvm::Type *type) {
+    return type->isIntegerTy() || type->isFloatingPointTy();
+}

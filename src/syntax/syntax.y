@@ -21,6 +21,7 @@
 
 %union
 {
+    int token;
     std::string *string;
     llvm::Type *type;
     llvm::Value *value;
@@ -49,6 +50,7 @@
 %type <type> type_specifier
 %type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
 %type <declarator_list> declarator_list
+%type <token> assignment_operator
 %type <expression> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
 %type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
 %type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression expression_statement
@@ -102,60 +104,60 @@ unary_operator
 
 multiplicative_expression
 	: unary_expression                               { $$ = $1; }
-	| multiplicative_expression '*' unary_expression { $$ = new YacExpression; } // TODO
-	| multiplicative_expression '/' unary_expression { $$ = new YacExpression; } // TODO
-	| multiplicative_expression '%' unary_expression { $$ = new YacExpression; } // TODO
+	| multiplicative_expression '*' unary_expression { $$ = new YacBinaryExpression($1, $3, '*'); }
+	| multiplicative_expression '/' unary_expression { $$ = new YacBinaryExpression($1, $3, '/'); }
+	| multiplicative_expression '%' unary_expression { $$ = new YacBinaryExpression($1, $3, '%'); }
 	;
 
 additive_expression
 	: multiplicative_expression                         { $$ = $1; }
-	| additive_expression '+' multiplicative_expression { $$ = new YacExpression; } // TODO
-	| additive_expression '-' multiplicative_expression { $$ = new YacExpression; } // TODO
+	| additive_expression '+' multiplicative_expression { $$ = new YacBinaryExpression($1, $3, '+'); }
+	| additive_expression '-' multiplicative_expression { $$ = new YacBinaryExpression($1, $3, '-'); }
 	;
 
 shift_expression
 	: additive_expression                           { $$ = $1; }
-	| shift_expression LEFT_OP additive_expression  { $$ = new YacExpression; } // TODO
-	| shift_expression RIGHT_OP additive_expression { $$ = new YacExpression; } // TODO
+	| shift_expression LEFT_OP additive_expression  { $$ = new YacBinaryExpression($1, $3, LEFT_OP); }
+	| shift_expression RIGHT_OP additive_expression { $$ = new YacBinaryExpression($1, $3, RIGHT_OP); }
 	;
 
 relational_expression
 	: shift_expression                             { $$ = $1; }
-	| relational_expression '<' shift_expression   { $$ = new YacExpression; } // TODO
-	| relational_expression '>' shift_expression   { $$ = new YacExpression; } // TODO
-	| relational_expression LE_OP shift_expression { $$ = new YacExpression; } // TODO
-	| relational_expression GE_OP shift_expression { $$ = new YacExpression; } // TODO
+	| relational_expression '<' shift_expression   { $$ = new YacBinaryExpression($1, $3, '<'); }
+	| relational_expression '>' shift_expression   { $$ = new YacBinaryExpression($1, $3, '>'); }
+	| relational_expression LE_OP shift_expression { $$ = new YacBinaryExpression($1, $3, LE_OP); }
+	| relational_expression GE_OP shift_expression { $$ = new YacBinaryExpression($1, $3, GE_OP); }
 	;
 
 equality_expression
 	: relational_expression                           { $$ = $1; }
-	| equality_expression EQ_OP relational_expression { $$ = new YacExpression; } // TODO
-	| equality_expression NE_OP relational_expression { $$ = new YacExpression; } // TODO
+	| equality_expression EQ_OP relational_expression { $$ = new YacBinaryExpression($1, $3, EQ_OP); }
+	| equality_expression NE_OP relational_expression { $$ = new YacBinaryExpression($1, $3, NE_OP); }
 	;
 
 and_expression
 	: equality_expression                    { $$ = $1; }
-	| and_expression '&' equality_expression { $$ = new YacExpression; } // TODO
+	| and_expression '&' equality_expression { $$ = new YacBinaryExpression($1, $3, '&'); }
 	;
 
 exclusive_or_expression
 	: and_expression                             { $$ = $1; }
-	| exclusive_or_expression '^' and_expression { $$ = new YacExpression; } // TODO
+	| exclusive_or_expression '^' and_expression { $$ = new YacBinaryExpression($1, $3, '^'); }
 	;
 
 inclusive_or_expression
 	: exclusive_or_expression                             { $$ = $1; }
-	| inclusive_or_expression '|' exclusive_or_expression { $$ = new YacExpression; } // TODO
+	| inclusive_or_expression '|' exclusive_or_expression { $$ = new YacBinaryExpression($1, $3, '|'); }
 	;
 
 logical_and_expression
 	: inclusive_or_expression                               { $$ = $1; }
-	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacExpression; } // TODO
+	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacBinaryLogicExpression($1, $3, AND_OP); }
 	;
 
 logical_or_expression
 	: logical_and_expression                             { $$ = $1; }
-	| logical_or_expression OR_OP logical_and_expression { $$ = new YacExpression; } // TODO
+	| logical_or_expression OR_OP logical_and_expression { $$ = new YacBinaryLogicExpression($1, $3, OR_OP); }
 	;
 
 conditional_expression
@@ -166,20 +168,20 @@ conditional_expression
 assignment_expression
 	: conditional_expression                                     { $$ = $1; }
 	| unary_expression '=' assignment_expression                 { $$ = new YacAssignmentExpression($1, $3); }
-	| unary_expression assignment_operator assignment_expression { $$ = new YacExpression; } // TODO
+	| unary_expression assignment_operator assignment_expression { $$ = new YacCompoundAssignmentExpression($1, $3, $2); }
 	;
 
 assignment_operator
-	: MUL_ASSIGN
-	| DIV_ASSIGN
-	| MOD_ASSIGN
-	| ADD_ASSIGN
-	| SUB_ASSIGN
-	| LEFT_ASSIGN
-	| RIGHT_ASSIGN
-	| AND_ASSIGN
-	| XOR_ASSIGN
-	| OR_ASSIGN
+	: MUL_ASSIGN   { $$ = '*'; }
+	| DIV_ASSIGN   { $$ = '/'; }
+	| MOD_ASSIGN   { $$ = '%'; }
+	| ADD_ASSIGN   { $$ = '+'; }
+	| SUB_ASSIGN   { $$ = '-'; }
+	| LEFT_ASSIGN  { $$ = LEFT_OP; }
+	| RIGHT_ASSIGN { $$ = RIGHT_OP; }
+	| AND_ASSIGN   { $$ = '&'; }
+	| XOR_ASSIGN   { $$ = '^'; }
+	| OR_ASSIGN    { $$ = '|'; }
 	;
 
 expression
@@ -199,12 +201,12 @@ declaration
 
 type_specifier
     : VOID   { $$ = llvm::Type::getVoidTy(globalContext); }
-    | CHAR   { $$ = llvm::Type::getInt8Ty(globalContext);; }
-    | SHORT  { $$ = llvm::Type::getInt16Ty(globalContext);; }
-    | INT    { $$ = llvm::Type::getInt32Ty(globalContext);; }
-    | LONG   { $$ = llvm::Type::getInt32Ty(globalContext);; }
-    | FLOAT  { $$ = llvm::Type::getFloatTy(globalContext);; }
-    | DOUBLE { $$ = llvm::Type::getDoubleTy(globalContext);; }
+    | CHAR   { $$ = llvm::Type::getInt8Ty(globalContext); }
+    | SHORT  { $$ = llvm::Type::getInt16Ty(globalContext); }
+    | INT    { $$ = llvm::Type::getInt32Ty(globalContext); }
+    | LONG   { $$ = llvm::Type::getInt32Ty(globalContext); }
+    | FLOAT  { $$ = llvm::Type::getFloatTy(globalContext); }
+    | DOUBLE { $$ = llvm::Type::getDoubleTy(globalContext); }
     ;
 
 declarator_list

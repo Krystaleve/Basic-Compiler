@@ -2,12 +2,13 @@
 #define STATEMENT_H_INCLUDE
 
 #include "ast.h"
+#include "expression.h"
 
 class YacReturnStatement: public YacSyntaxTreeNode {
 public:
-    YacSyntaxTreeNode *expression;
+    YacExpression *expression;
 
-    explicit YacReturnStatement(YacSyntaxTreeNode *expression = nullptr);
+    explicit YacReturnStatement(YacExpression *expression = nullptr);
     llvm::Value* generate(YacCodeGenContext &context) override;
 };
 

@@ -3,8 +3,12 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/raw_ostream.h>
 #include <iostream>
+#include "ast.h"
+#include "declaration.h"
 #include "expression.h"
 #include "type.h"
+// For token
+#include "../syntax/syntax.h"
 
 YacConstantExpression::YacConstantExpression(llvm::Value *value)
     : value(value) {}
@@ -20,6 +24,11 @@ llvm::Value *YacConstantExpression::generateRvalue(YacCodeGenContext &context) {
         }, "", context.block());
     }
     return value;
+}
+
+
+llvm::Value *YacLvalueExpression::generateRvalue(YacCodeGenContext &context) {
+    return castLvalueToRvalue(generateLvalue(context), context);
 }
 
 
@@ -40,6 +49,12 @@ llvm::Value *YacIdentifierExpression::find(YacCodeGenContext &context) {
     return nullptr;
 }
 
+llvm::Value *YacIdentifierExpression::generate(YacCodeGenContext &context) {
+    find(context);
+    return nullptr;
+}
+
+
 llvm::Value *YacIdentifierExpression::generateLvalue(YacCodeGenContext &context) {
     auto variable = find(context);
     if (variable) {
@@ -56,8 +71,7 @@ llvm::Value *YacIdentifierExpression::generateLvalue(YacCodeGenContext &context)
     return variable;
 }
 
-llvm::Value *YacIdentifierExpression::generateRvalue(YacCodeGenContext &context)
-{
+llvm::Value *YacIdentifierExpression::generateRvalue(YacCodeGenContext &context) {
     return castLvalueToRvalue(find(context), context);
 }
 
@@ -140,8 +154,48 @@ llvm::Value *YacCallExpression::generateRvalue(YacCodeGenContext &context) {
     return doGenerate(function, function_type, context);
 }
 
+YacBinaryExpression::YacBinaryExpression(YacExpression *left, YacExpression *right, int token)
+        : left(left), right(right), token(token)
+{}
+
+llvm::Value *YacBinaryExpression::generate(YacCodeGenContext &context) {
+    auto left_value = left->generateRvalue(context);
+    auto right_value = right->generateRvalue(context);
+    binaryExpressionCheck(left_value, right_value, token);
+    return nullptr;
+}
+
+llvm::Value *YacBinaryExpression::generateRvalue(YacCodeGenContext &context)
+{
+    auto left_value = left->generateRvalue(context);
+    auto right_value = right->generateRvalue(context);
+    return binaryExpression(left_value, right_value, token, context);
+}
+
+
+YacBinaryLogicExpression::YacBinaryLogicExpression(YacExpression *left, YacExpression *right, int token)
+        : left(left), right(right), token(token) {}
+
+llvm::Value *YacBinaryLogicExpression::generate(YacCodeGenContext &context) {
+    // TODO
+    return YacExpression::generate(context);
+}
+
+llvm::Value *YacBinaryLogicExpression::generateRvalue(YacCodeGenContext &context)
+{
+    // TODO
+    return YacExpression::generateRvalue(context);
+}
+
+
 YacAssignmentExpression::YacAssignmentExpression(YacExpression *left, YacExpression *right)
     : left(left), right(right) {}
+
+llvm::Value *YacAssignmentExpression::generate(YacCodeGenContext &context) {
+    if(left->generateLvalue(context))
+        right->generateRvalue(context);
+    return nullptr;
+}
 
 llvm::Value *YacAssignmentExpression::generateLvalue(YacCodeGenContext &context) {
     auto left_value = left->generateLvalue(context);
@@ -154,7 +208,51 @@ llvm::Value *YacAssignmentExpression::generateLvalue(YacCodeGenContext &context)
     return left_value;
 }
 
-llvm::Value *YacAssignmentExpression::generateRvalue(YacCodeGenContext &context) {
-    return castLvalueToRvalue(generateLvalue(context), context);
+
+YacCompoundAssignmentExpression::YacCompoundAssignmentExpression(YacExpression *left, YacExpression *right, int token)
+        : left(left), right(right), token(token) {}
+
+llvm::Value *YacCompoundAssignmentExpression::generate(YacCodeGenContext &context) {
+    auto left_value = left->generateLvalue(context);
+    if (!left_value)
+        return nullptr;
+    auto left_value_rvalue = castLvalueToRvalue(left_value, context);
+    if (!left_value_rvalue)
+        return nullptr;
+    auto right_value = right->generateRvalue(context);
+    binaryExpressionCheck(left_value_rvalue, right_value, token);
+    return nullptr;
 }
 
+llvm::Value *YacCompoundAssignmentExpression::generateLvalue(YacCodeGenContext &context) {
+    auto left_value = left->generateLvalue(context);
+    if (!left_value)
+        return nullptr;
+    auto left_value_rvalue = castLvalueToRvalue(left_value, context);
+    if (!left_value_rvalue)
+        return nullptr;
+    auto result = binaryExpression(left_value_rvalue, right->generateRvalue(context), token, context);
+    if (!result)
+        return nullptr;
+    new llvm::StoreInst(castValueToType(result, llvm::cast<llvm::PointerType>(left_value->getType())->getElementType(), context), left_value, context.block());
+    return left_value;
+}
+
+
+bool binaryExpressionCheck(llvm::Value *left, llvm::Value *right, int token) {
+    if (!left || !right)
+        return false;
+    auto left_type = left->getType(), right_type = right->getType();
+    switch (token) {
+        case '+':
+            if (isArithmeticType(left_type) && isArithmeticType(right_type)) {
+
+            }
+        default:
+            return false;
+    }
+}
+
+llvm::Value *binaryExpression(llvm::Value *left, llvm::Value *right, int token, YacCodeGenContext &contex) {
+    return nullptr;
+}

@@ -5,7 +5,7 @@
 #include "context.h"
 #include "type.h"
 
-YacReturnStatement::YacReturnStatement(YacSyntaxTreeNode *expression)
+YacReturnStatement::YacReturnStatement(YacExpression *expression)
     :expression(expression) {}
 
 llvm::Value *YacReturnStatement::generate(YacCodeGenContext &context)
@@ -16,7 +16,7 @@ llvm::Value *YacReturnStatement::generate(YacCodeGenContext &context)
         std::cerr << "Non-void function should return a value" << std::endl;
     } else {
         if (!context.function()->getReturnType()->isVoidTy()) {
-            auto value = expression->generate(context);
+            auto value = expression->generateRvalue(context);
             if (!value)
                 return nullptr;
             return llvm::ReturnInst::Create(globalContext,
