@@ -1,4 +1,6 @@
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Instructions.h>
 #include <iostream>
 #include "type.h"
 
@@ -52,4 +54,12 @@ llvm::Type *castToParameterType(llvm::Type *type)
     if (type->isFunctionTy())
         return llvm::PointerType::getUnqual(type);
     return type;
+}
+
+llvm::Value *castToType(llvm::Value *value, llvm::Type *type, YacCodeGenContext &context)
+{
+    if (value->getType() == type)
+        return value;
+    auto code = llvm::CastInst::getCastOpcode(value, true, type, true);
+    return llvm::CastInst::Create(code, value, type, "", context.block());
 }

@@ -97,9 +97,15 @@ YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, std::stri
 llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
 {
     assert(identifier);
+    auto &scope = context.is_top_level() ? context.globals() : context.locals();
+    if (scope.find(*identifier) != scope.end()) {
+        std::cerr << "redefinition of \'" << *identifier << "\'" << std::endl;
+        return nullptr;
+    }
     if (!isValidFunctionType(type))
         return nullptr;
     auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
+    scope.insert(std::make_pair(*identifier, function));
     auto block = llvm::BasicBlock::Create(globalContext, "", function);
     context.setFunction(function);
     context.push_block(block);

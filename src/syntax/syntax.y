@@ -27,6 +27,7 @@
     YacDeclaratorBuilder *declarator;
     YacDeclaratorBuilderList *declarator_list;
     YacExpression *expression;
+    YacExpressionList *expression_list;
     YacSyntaxTreeNode *node;
 }
 
@@ -51,6 +52,7 @@
 %type <expression> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
 %type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
 %type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression
+%type <expression_list> argument_expression_list
 %type <node> statement compound_statement statement_list declaration_list jump_statement expression_statement
 %type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
 
@@ -61,26 +63,25 @@
 %%
 
 primary_expression
-	: IDENTIFIER         { $$ = new YacExpression; } // TODO
-	| INTEGER_CONSTANT   { $$ = new YacPrimaryExpression($1); }
+	: IDENTIFIER         { $$ = new YacIdentifierExpression($1); }
+	| INTEGER_CONSTANT   { $$ = new YacConstantExpression($1); }
 	| FLOAT_CONSTANT     { $$ = new YacExpression; } // TODO
-	| STRING_LITERAL     { $$ = new YacPrimaryExpression($1); }
+	| STRING_LITERAL     { $$ = new YacConstantExpression($1); }
 	| '(' expression ')' { $$ = $2; }
 	;
 
 postfix_expression
 	: primary_expression                                  { $$ = $1; }
 	| postfix_expression '[' expression ']'               { $$ = new YacExpression; } // TODO
-	| postfix_expression '(' ')'                          { $$ = new YacExpression; } // TODO
-	| postfix_expression '(' argument_expression_list ')' { $$ = new YacExpression; } // TODO
-	| postfix_expression '.' IDENTIFIER                   { $$ = new YacExpression; } // TODO
+	| postfix_expression '(' ')'                          { $$ = new YacCallExpression($1); }
+	| postfix_expression '(' argument_expression_list ')' { $$ = new YacCallExpression($1, $3); } // TODO
 	| postfix_expression INC_OP                           { $$ = new YacExpression; } // TODO
 	| postfix_expression DEC_OP                           { $$ = new YacExpression; } // TODO
 	;
 
 argument_expression_list
-	: assignment_expression
-	| argument_expression_list ',' assignment_expression
+	: assignment_expression                               { $$ = new YacExpressionList; $$->push_back($1); }
+	| argument_expression_list ',' assignment_expression  { $$ = $1; $$->push_back($3); }
 	;
 
 unary_expression
