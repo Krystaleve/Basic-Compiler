@@ -28,3 +28,10 @@ llvm::Value *YacReturnStatement::generate(YacSemanticAnalyzer &context)
     return nullptr;
 }
 
+YacIfStatement::YacIfStatement(YacExpression *expression, YacSyntaxTreeNode *if_clause, YacSyntaxTreeNode *else_clause)
+    : expression(expression), if_clause(if_clause), else_clause(else_clause) {}
+
+llvm::Value *YacIfStatement::generate(YacSemanticAnalyzer &context)
+{
+    return nullptr;
+}

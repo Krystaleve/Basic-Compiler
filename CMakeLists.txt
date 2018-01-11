@@ -61,14 +61,14 @@ foreach(Test tests palindromic kmp calc)
             OUTPUT ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.c
             COMMAND ${CMAKE_C_COMPILER} ${Test}.c -E -o ${Test}-yac.c ${CMAKE_C_FLAGS}
             DEPENDS ${CMAKE_SOURCE_DIR}/tests/${Test}.c
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
             COMMENT "Generating ${Test}-yac.c"
     )
     add_custom_command(
             OUTPUT ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.ll
             COMMAND $<TARGET_FILE:yac> -o ${Test}-yac.ll ${Test}-yac.c
             DEPENDS ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.c
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
             COMMENT "Generating ${Test}-yac.ll"
     )
     add_custom_command(

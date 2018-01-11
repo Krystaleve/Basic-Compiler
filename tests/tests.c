@@ -1,7 +1,5 @@
-int main() {
-    int i;
-    i = 1;
-    if (i)
-        i = 0;
+#include <stdio.h>
+
+int main(int i) {
     return i;
 }
