@@ -25,7 +25,7 @@ int YacSemanticAnalyzer::execute(llvm::Function *main, int argc, const char **ar
         return 1;
     }
     engine->finalizeObject();
-    int (*func)(int argc, const char **argv) = reinterpret_cast<int (*)(int, const char **)>(engine->getPointerToFunction(main));
+    auto func = reinterpret_cast<int (*)(int, const char **)>(engine->getPointerToFunction(main));
     return func(argc, argv);
 }
 

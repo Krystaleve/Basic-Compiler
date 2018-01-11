@@ -56,28 +56,27 @@ llvm_map_components_to_libnames(llvm_libs core executionengine x86asmparser x86a
 target_link_libraries(yac ${llvm_libs})
 
 foreach(Test tests palindromic kmp calc)
-    add_executable(${Test}-cc src/tests/${Test}.c)
+    add_executable(${Test}-cc tests/${Test}.c)
     add_custom_command(
-            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.c
+            OUTPUT ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.c
             COMMAND ${CMAKE_C_COMPILER} ${Test}.c -E -o ${Test}-yac.c ${CMAKE_C_FLAGS}
-            #COMMAND sed -i '/^\#.*/,+1 d' ${Test}-yac.c
-            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/tests/${Test}.c
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
             COMMENT "Generating ${Test}-yac.c"
     )
     add_custom_command(
-            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.ll
+            OUTPUT ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.ll
             COMMAND $<TARGET_FILE:yac> -o ${Test}-yac.ll ${Test}-yac.c
-            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.c
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
             COMMENT "Generating ${Test}-yac.ll"
     )
     add_custom_command(
-            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.s
+            OUTPUT ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.s
             COMMAND llc -relocation-model=pic ${Test}-yac.ll
-            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.ll
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            DEPENDS ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.ll
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
             COMMENT "Generating ${Test}-yac.s"
     )
-    add_executable(${Test}-yac ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.s)
+    add_executable(${Test}-yac ${CMAKE_SOURCE_DIR}/tests/${Test}-yac.s)
 endforeach(Test)

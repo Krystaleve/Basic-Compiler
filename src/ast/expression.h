@@ -24,7 +24,7 @@ public:
     }
 };
 
-class YacErrorExpression: public YacExpression {
+class YacEmptyExpression: public YacExpression {
     llvm::Value *generateLvalue(YacSemanticAnalyzer &context) override {
         return nullptr;
     }

@@ -14,7 +14,12 @@
     extern int yylex();
     extern int yyerror(const char *error_str);
 
-    #define EXPRESSION_TODO(x) x = new YacErrorExpression, std::cerr << "yac: " << YacSyntaxError("unsupported expression") << std::endl
+    #define GET_ONE_ARGUMENT_MACRO(_1,NAME,...) NAME
+    #define GET_TWO_ARGUMENT_MACRO(_1,_2,NAME,...) NAME
+    #define UNSUPPORTED(str) std::cerr << "yac: " << YacSyntaxError("unsupported " str) << std::endl
+    #define TODO_PRINT(x) UNSUPPORTED(x)
+    #define EXPRESSION_TODO(x) x = new YacEmptyExpression, UNSUPPORTED("expression")
+    #define STATMENT_TODO(x) x = new YacSyntaxTreeNode, std::cerr << "yac: " << YacSyntaxError("unsupported statement") << std::endl;
 %}
 
 %union
@@ -32,6 +37,8 @@
     YacDeclaration *declaration;
     YacDeclarationList *declaration_list;
     YacFunctionDefinition *function;
+    // TODO
+    // YacInitializer *init;
     YacScope *scope;
 }
 
@@ -51,8 +58,8 @@
 %token CASE DEFAULT IF THEN ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
 %type <type> type_specifier
-%type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
-%type <declarator_list> declarator_list
+%type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator init_declarator
+%type <declarator_list> init_declarator_list
 %type <token> assignment_operator
 %type <expression> expression primary_expression postfix_expression unary_expression multiplicative_expression additive_expression
 %type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
@@ -78,7 +85,7 @@ primary_expression
 	    auto value = findInScopes(*$1);
 	    if (!value) {
 	       std::cerr << "yac: " << YacSyntaxError("unknown identifier `" + *$1 + "\'") << std::endl;
-	       $$ = new YacErrorExpression;
+	       $$ = new YacEmptyExpression;
 	    } else
 	        $$ = new YacObjectExpression(value);
     }
@@ -178,7 +185,7 @@ logical_or_expression
 
 conditional_expression
 	: logical_or_expression                                           { $$ = $1; }
-	| logical_or_expression '?' expression ':' conditional_expression { $$ = new YacExpression; } // TODO
+	| logical_or_expression '?' expression ':' conditional_expression { EXPRESSION_TODO($$); } // TODO
 	;
 
 assignment_expression
@@ -202,12 +209,12 @@ assignment_operator
 
 expression
     : assignment_expression                { $$ = $1; }
-    | expression ',' assignment_expression { $$ = new YacExpression; } // TODO
+    | expression ',' assignment_expression { EXPRESSION_TODO($$); } // TODO
     ;
 
 declaration
     : type_specifier ';' { $$ = new YacDeclarationList; }
-    | type_specifier declarator_list ';' {
+    | type_specifier init_declarator_list ';' {
         auto list = new YacDeclarationList;
         for (auto declarator: *$2) {
             auto node = new YacDeclaration(declarator->type($1), declarator->identifier());
@@ -228,10 +235,15 @@ type_specifier
     | DOUBLE { $$ = llvm::Type::getDoubleTy(YacSemanticAnalyzer::context()); }
     ;
 
-declarator_list
-    : declarator                     { $$ = new YacDeclaratorBuilderList; $$->push_back($1); }
-    | declarator_list ',' declarator { $$->push_back($3); }
-    ;
+init_declarator_list
+	: init_declarator                          { $$ = new YacDeclaratorBuilderList; $$->push_back($1); }
+	| init_declarator_list ',' init_declarator { $$->push_back($3); }
+	;
+
+init_declarator
+	: declarator                 { $$ = $1; }
+	| declarator '=' initializer { $$ = $1; UNSUPPORTED("initializer declarator"); }
+	;
 
 declarator
     : '*' declarator        { $$ = new YacDeclaratorPointer($2); }
@@ -278,11 +290,22 @@ direct_abstract_declarator
 	| direct_abstract_declarator '(' parameter_list ',' ELLIPSIS ')' { $$ = new YacDeclaratorFunction($1, $3, true); }
 	;
 
+initializer
+	: assignment_expression
+	| '{' initializer_list '}'
+	| '{' initializer_list ',' '}'
+	;
+
+initializer_list
+	: initializer
+	| initializer_list ',' initializer
+	;
+
 statement
 	: compound_statement   { $$ = $1; }
 	| expression_statement { $$ = $1; }
-	| selection_statement  { $$ = new YacSyntaxTreeNode; } // TODO
-	| iteration_statement  { $$ = new YacSyntaxTreeNode; } // TODO
+	| selection_statement  { STATMENT_TODO($$); } // TODO
+	| iteration_statement  { STATMENT_TODO($$); } // TODO
 	| jump_statement       { $$ = $1; }
 	;
 
@@ -335,8 +358,8 @@ iteration_statement
 	;
 
 jump_statement
-	: CONTINUE ';'          { $$ = new YacSyntaxTreeNode; } // TODO
-	| BREAK ';'             { $$ = new YacSyntaxTreeNode; } // TODO
+	: CONTINUE ';'          { STATMENT_TODO($$); } // TODO
+	| BREAK ';'             { STATMENT_TODO($$); } // TODO
 	| RETURN ';'            { $$ = new YacReturnStatement; }
 	| RETURN expression ';' { $$ = new YacReturnStatement($2); }
 	;

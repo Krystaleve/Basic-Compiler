@@ -1,0 +1,205 @@
+<html>
+<head><title>ANSI C grammar (Lex)</title>
+<link rel="made" rev="made" href="mailto:jutta@pobox.com">
+</head><body>
+<h1>ANSI C grammar, Lex specification</h1>
+
+In 1985, Jeff Lee published this Lex specification together with
+a <a href="ANSI-C-grammar-y.html"
+>Yacc grammar</a>
+for the April 30, 1985
+ANSI C draft.&#160;<tt> </tt>
+Tom Stockfisch reposted
+both to net.sources in 1987; that original, as mentioned in 
+the answer to <a href="c-faq/c-17.html#17-25">question 17.25</a>
+of the comp.lang.c FAQ, can be ftp'ed from ftp.uu.net, file
+<a href="ftp://ftp.uu.net/usenet/net.sources/ansi.c.grammar.Z"
+	>usenet/net.sources/ansi.c.grammar.Z</a>.
+<p>
+I intend to keep this version as close to the current C Standard grammar
+as possible; please let me know if you discover
+discrepancies.
+<p>
+<a href="mailto:jutta@pobox.com">Jutta Degener</a>, 1995
+<p>
+<hr>
+<pre>
+
+D			[0-9]
+L			[a-zA-Z_]
+H			[a-fA-F0-9]
+E			[Ee][+-]?{D}+
+FS			(f|F|l|L)
+IS			(u|U|l|L)*
+
+%{
+#include &lt;stdio.h&gt;
+#include &quot;y.tab.h&quot;
+
+void <a href="#count">count()</a>;
+%}
+
+%%
+&quot;/*&quot;			{ <a href="#comment">comment()</a>; }
+
+&quot;auto&quot;			{ count(); return(<a name="AUTO">AUTO</a>); }
+&quot;break&quot;			{ count(); return(<a name="BREAK">BREAK</a>); }
+&quot;case&quot;			{ count(); return(<a name="CASE">CASE</a>); }
+&quot;char&quot;			{ count(); return(<a name="CHAR">CHAR</a>); }
+&quot;const&quot;			{ count(); return(<a name="CONST">CONST</a>); }
+&quot;continue&quot;		{ count(); return(<a name="CONTINUE">CONTINUE</a>); }
+&quot;default&quot;		{ count(); return(<a name="DEFAULT">DEFAULT</a>); }
+&quot;do&quot;			{ count(); return(<a name="DO">DO</a>); }
+&quot;double&quot;		{ count(); return(<a name="DOUBLE">DOUBLE</a>); }
+&quot;else&quot;			{ count(); return(<a name="ELSE">ELSE</a>); }
+&quot;enum&quot;			{ count(); return(<a name="ENUM">ENUM</a>); }
+&quot;extern&quot;		{ count(); return(<a name="EXTERN">EXTERN</a>); }
+&quot;float&quot;			{ count(); return(<a name="FLOAT">FLOAT</a>); }
+&quot;for&quot;			{ count(); return(<a name="FOR">FOR</a>); }
+&quot;goto&quot;			{ count(); return(<a name="GOTO">GOTO</a>); }
+&quot;if&quot;			{ count(); return(<a name="IF">IF</a>); }
+&quot;int&quot;			{ count(); return(<a name="INT">INT</a>); }
+&quot;long&quot;			{ count(); return(<a name="LONG">LONG</a>); }
+&quot;register&quot;		{ count(); return(<a name="REGISTER">REGISTER</a>); }
+&quot;return&quot;		{ count(); return(<a name="RETURN">RETURN</a>); }
+&quot;short&quot;			{ count(); return(<a name="SHORT">SHORT</a>); }
+&quot;signed&quot;		{ count(); return(<a name="SIGNED">SIGNED</a>); }
+&quot;sizeof&quot;		{ count(); return(<a name="SIZEOF">SIZEOF</a>); }
+&quot;static&quot;		{ count(); return(<a name="STATIC">STATIC</a>); }
+&quot;struct&quot;		{ count(); return(<a name="STRUCT">STRUCT</a>); }
+&quot;switch&quot;		{ count(); return(<a name="SWITCH">SWITCH</a>); }
+&quot;typedef&quot;		{ count(); return(<a name="TYPEDEF">TYPEDEF</a>); }
+&quot;union&quot;			{ count(); return(<a name="UNION">UNION</a>); }
+&quot;unsigned&quot;		{ count(); return(<a name="UNSIGNED">UNSIGNED</a>); }
+&quot;void&quot;			{ count(); return(<a name="VOID">VOID</a>); }
+&quot;volatile&quot;		{ count(); return(<a name="VOLATILE">VOLATILE</a>); }
+&quot;while&quot;			{ count(); return(<a name="WHILE">WHILE</a>); }
+
+{L}({L}|{D})*		{ count(); return(<a href="#check-type">check_type()</a>); }
+
+0[xX]{H}+{IS}?		{ count(); return(<a name="CONSTANT">CONSTANT</a>); }
+0{D}+{IS}?		{ count(); return(CONSTANT); }
+{D}+{IS}?		{ count(); return(CONSTANT); }
+L?'(\\.|[^\\'])+'	{ count(); return(CONSTANT); }
+
+{D}+{E}{FS}?		{ count(); return(CONSTANT); }
+{D}*&quot;.&quot;{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
+{D}+&quot;.&quot;{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
+
+L?\&quot;(\\.|[^\\&quot;])*\&quot;	{ count(); return(<a name="STRING-LITERAL">STRING_LITERAL</a>); }
+
+&quot;...&quot;			{ count(); return(<a name="ELLIPSIS">ELLIPSIS</a>); }
+&quot;&gt;&gt;=&quot;			{ count(); return(<a name="RIGHT-ASSIGN">RIGHT_ASSIGN</a>); }
+&quot;&lt;&lt;=&quot;			{ count(); return(<a name="LEFT-ASSIGN">LEFT_ASSIGN</a>); }
+&quot;+=&quot;			{ count(); return(<a name="ADD-ASSIGN">ADD_ASSIGN</a>); }
+&quot;-=&quot;			{ count(); return(<a name="SUB-ASSIGN">SUB_ASSIGN</a>); }
+&quot;*=&quot;			{ count(); return(<a name="MUL-ASSIGN">MUL_ASSIGN</a>); }
+&quot;/=&quot;			{ count(); return(<a name="DIV-ASSIGN">DIV_ASSIGN</a>); }
+&quot;%=&quot;			{ count(); return(<a name="MOD-ASSIGN">MOD_ASSIGN</a>); }
+&quot;&amp;=&quot;			{ count(); return(<a name="AND-ASSIGN">AND_ASSIGN</a>); }
+&quot;^=&quot;			{ count(); return(<a name="XOR-ASSIGN">XOR_ASSIGN</a>); }
+&quot;|=&quot;			{ count(); return(<a name="OR-ASSIGN">OR_ASSIGN</a>); }
+&quot;&gt;&gt;&quot;			{ count(); return(<a name="RIGHT-OP">RIGHT_OP</a>); }
+&quot;&lt;&lt;&quot;			{ count(); return(<a name="LEFT-OP">LEFT_OP</a>); }
+&quot;++&quot;			{ count(); return(<a name="INC-OP">INC_OP</a>); }
+&quot;--&quot;			{ count(); return(<a name="DEC-OP">DEC_OP</a>); }
+&quot;-&gt;&quot;			{ count(); return(<a name="PTR-OP">PTR_OP</a>); }
+&quot;&amp;&amp;&quot;			{ count(); return(<a name="AND-OP">AND_OP</a>); }
+&quot;||&quot;			{ count(); return(<a name="OR-OP">OR_OP</a>); }
+&quot;&lt;=&quot;			{ count(); return(<a name="LE-OP">LE_OP</a>); }
+&quot;&gt;=&quot;			{ count(); return(<a name="GE-OP">GE_OP</a>); }
+&quot;==&quot;			{ count(); return(<a name="EQ-OP">EQ_OP</a>); }
+&quot;!=&quot;			{ count(); return(<a name="NE-OP">NE_OP</a>); }
+&quot;;&quot;			{ count(); return(';'); }
+(&quot;{&quot;|"&lt;%")		{ count(); return('{'); }
+(&quot;}&quot;|"%&gt;")		{ count(); return('}'); }
+&quot;,&quot;			{ count(); return(','); }
+&quot;:&quot;			{ count(); return(':'); }
+&quot;=&quot;			{ count(); return('='); }
+&quot;(&quot;			{ count(); return('('); }
+&quot;)&quot;			{ count(); return(')'); }
+(&quot;[&quot;|"&lt;:")		{ count(); return('['); }
+(&quot;]&quot;|":&gt;")		{ count(); return(']'); }
+&quot;.&quot;			{ count(); return('.'); }
+&quot;&amp;&quot;			{ count(); return('&amp;'); }
+&quot;!&quot;			{ count(); return('!'); }
+&quot;~&quot;			{ count(); return('~'); }
+&quot;-&quot;			{ count(); return('-'); }
+&quot;+&quot;			{ count(); return('+'); }
+&quot;*&quot;			{ count(); return('*'); }
+&quot;/&quot;			{ count(); return('/'); }
+&quot;%&quot;			{ count(); return('%'); }
+&quot;&lt;&quot;			{ count(); return('&lt;'); }
+&quot;&gt;&quot;			{ count(); return('&gt;'); }
+&quot;^&quot;			{ count(); return('^'); }
+&quot;|&quot;			{ count(); return('|'); }
+&quot;?&quot;			{ count(); return('?'); }
+
+[ \t\v\n\f]		{ count(); }
+.			{ /* ignore bad characters */ }
+
+%%
+
+yywrap()
+{
+	return(1);
+}
+
+<a name="comment">
+comment()
+{
+	char c, c1;
+
+loop:
+	while ((c = input()) != '*' &amp;&amp; c != 0)
+		putchar(c);
+
+	if ((c1 = input()) != '/' &amp;&amp; c != 0)
+	{
+		unput(c1);
+		goto loop;
+	}
+
+	if (c != 0)
+		putchar(c1);
+}
+</a>
+
+int column = 0;
+
+<a name="count">void count()
+{
+	int i;
+
+	for (i = 0; yytext[i] != '\0'; i++)
+		if (yytext[i] == '\n')
+			column = 0;
+		else if (yytext[i] == '\t')
+			column += 8 - (column % 8);
+		else
+			column++;
+
+	ECHO;
+}
+</a>
+
+<a name="check-type">int check_type()
+{
+/*
+* pseudo code --- this is what it should check
+*
+*	if (yytext == type_name)
+*		return(TYPE_NAME);
+*
+*	return(IDENTIFIER);
+*/
+
+/*
+*	it actually will only return IDENTIFIER
+*/
+
+	return(IDENTIFIER);
+}</a>
+</pre>
+</body>
+</html>
