@@ -4,6 +4,7 @@
 #include "statement.h"
 #include "context.h"
 #include "type.h"
+#include "expression.h"
 
 YacReturnStatement::YacReturnStatement(YacExpression *expression)
     :expression(expression) {}
