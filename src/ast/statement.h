@@ -9,7 +9,7 @@ public:
     YacExpression *expression;
 
     explicit YacReturnStatement(YacExpression *expression = nullptr);
-    llvm::Value* generate(YacCodeGenContext &context) override;
+    llvm::Value* generate(YacSemanticAnalyzer &context) override;
 };
 
 

@@ -3,6 +3,7 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/Support/raw_ostream.h>
 #include "declaration.h"
+#include "expression.h"
 #include "context.h"
 #include "type.h"
 
@@ -42,33 +43,26 @@ llvm::Type *YacDeclaratorArray::type(llvm::Type *specifier) {
 }
 
 
-YacDeclaratorFunction::YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacSyntaxTreeNode *node, bool var_arg)
+YacDeclaratorFunction::YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacDeclarationList *node, bool var_arg)
         : YacDeclaratorHasParent(parent), m_node(node), m_var_arg(var_arg) {}
 
 llvm::Type *YacDeclaratorFunction::type(llvm::Type *specifier)
 {
     std::vector<llvm::Type *> params;
     if (m_node)
-        for (auto node: dynamic_cast<YacSyntaxTreeNodeList *>(m_node)->children)
-            params.push_back(dynamic_cast<YacDeclaration *>(node)->type);
+        for (auto node: m_node->children)
+            params.push_back(node->type);
     return YacDeclaratorHasParent::type(llvm::FunctionType::get(specifier, params, m_var_arg));
 }
 
 
-YacDeclaration::YacDeclaration(llvm::Type *type, std::string *identifier)
-    : type(type), identifier(identifier) {}
+YacDeclaration::YacDeclaration(llvm::Type *type, std::string *identifier, int specifier)
+    : YacSyntaxTreeNode(), type(type), identifier(identifier), specifier(specifier) {
+    assert(type);
+}
 
-llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
+llvm::Value *YacDeclaration::generate(YacSemanticAnalyzer &context)
 {
-    if (identifier == nullptr) {
-        std::cerr << "name omitted" << std::endl;
-        return nullptr;
-    }
-    auto &scope = context.is_top_level() ? context.globals() : context.locals();
-    if (scope.find(*identifier) != scope.end()) {
-        std::cerr << "redefinition of \'" << *identifier << "\'" << std::endl;
-        return nullptr;
-    }
     llvm::Value *var;
     if (type->isFunctionTy()) {
         auto function_type = llvm::cast<llvm::FunctionType>(type);
@@ -79,54 +73,47 @@ llvm::Value *YacDeclaration::generate(YacCodeGenContext &context)
     } else {
         if (!isValidVariableType(type))
             return nullptr;
-        if (context.is_top_level()) {
+        auto block = context.block();
+        if (!block) {
             llvm::Constant *init = llvm::Constant::getNullValue(type);
             var = new llvm::GlobalVariable(context.module(), type, false, llvm::GlobalVariable::CommonLinkage,
                                            init, *identifier);
         } else
-            var = new llvm::AllocaInst(type, 0, "", context.block());
+            var = new llvm::AllocaInst(type, 0, "", block);
     }
-    scope.insert(std::make_pair(*identifier, var));
+    context.add(this, var);
     return var;
 }
 
 
-YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, std::vector<YacDeclaration *> &&params, YacSyntaxTreeNode *body)
-    : type(type), identifier(identifier), params(params), body(body) {}
+YacFunctionDefinition::YacFunctionDefinition(llvm::FunctionType *type, YacScope *params, YacSyntaxTreeNode *body, std::string *identifier, int specifier)
+        : YacDeclaration(type, identifier, specifier), params(params), body(body) {}
 
-llvm::Value *YacFunctionDefinition::generate(YacCodeGenContext &context)
+llvm::Value *YacFunctionDefinition::generate(YacSemanticAnalyzer &context)
 {
-    assert(identifier);
-    auto &scope = context.is_top_level() ? context.globals() : context.locals();
-    if (scope.find(*identifier) != scope.end()) {
-        std::cerr << "redefinition of \'" << *identifier << "\'" << std::endl;
-        return nullptr;
-    }
+    auto type = llvm::cast<llvm::FunctionType>(this->type);
     if (!isValidFunctionType(type))
         return nullptr;
-    auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, *identifier, &context.module());
-    scope.insert(std::make_pair(*identifier, function));
-    auto block = llvm::BasicBlock::Create(globalContext, "", function);
+    assert(!context.function() && !context.block());
+    auto function = llvm::Function::Create(type, llvm::GlobalValue::ExternalLinkage, identifier ? *identifier : "",
+                                      &context.module());
+    context.add(this, function);
+    auto block = llvm::BasicBlock::Create(YacSemanticAnalyzer::context(), "", function);
     context.setFunction(function);
-    context.push_block(block);
+    context.setBlock(block);
     auto arg_values = function->arg_begin();
-    for (auto param: params) {
-        auto variable = param->generate(context);
-        if (variable)
-            new llvm::StoreInst(arg_values++, variable, block);
+    if (params) {
+        for (auto param: params->children) {
+            auto variable = param->generate(context);
+            if (variable)
+                new llvm::StoreInst(arg_values, variable, block);
+            ++arg_values;
+        }
     }
     if (body)
         body->generate(context);
-    if (!block->getTerminator()) {
-        if (function->getReturnType()->isVoidTy()) {
-            llvm::ReturnInst::Create(globalContext, block);
-        } else {
-            llvm::Value *variable = new llvm::AllocaInst(function->getReturnType(), 0, "", block);
-            llvm::Value *value = new llvm::LoadInst(variable, "", block);
-            llvm::ReturnInst::Create(globalContext, value, block);
-        }
-    }
-    context.pop_block();
+    context.ensureBlockTerminated();
+    context.setBlock(nullptr);
     context.setFunction(nullptr);
     return function;
 }

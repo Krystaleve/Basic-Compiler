@@ -1,69 +1,81 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/ExecutionEngine/GenericValue.h>
+#include <llvm/IR/Instructions.h>
 #include <iostream>
 #include "context.h"
+#include "declaration.h"
+#include "expression.h"
 
-llvm::LLVMContext globalContext; // NOLINT
-
-YacCodeGenContext::YacCodeGenContext()
-    : m_module(new llvm::Module("main", globalContext)), m_function(nullptr) {}
+YacSemanticAnalyzer::YacSemanticAnalyzer()
+    : m_module(new llvm::Module("main", YacSemanticAnalyzer::context())), m_block(nullptr), m_function(nullptr) {}
 
 
-CodeBlock::CodeBlock(llvm::BasicBlock *block)
-    : m_block(block) {}
-
-CodeBlock::CodeBlock(llvm::BasicBlock *block, const std::map<std::string, llvm::Value *> &locals) // NOLINT
-    : m_block(block), m_locals(locals) {}
-
-std::map<std::string, llvm::Value*>& YacCodeGenContext::locals() {
-    return m_blocks.top().m_locals;
-}
-
-std::map<std::string, llvm::Value*>& YacCodeGenContext::globals() {
-    return m_globals;
-}
-
-llvm::BasicBlock* YacCodeGenContext::block() {
-    return m_blocks.top().m_block;
-}
-
-void YacCodeGenContext::push_block(llvm::BasicBlock *block, bool copy_locals) {
-    if (copy_locals)
-        m_blocks.emplace(block, m_blocks.top().m_locals);
-    else
-        m_blocks.emplace(block);
-}
-
-void YacCodeGenContext::pop_block() {
-    m_blocks.pop();
-}
-
-void YacCodeGenContext::print() {
+void YacSemanticAnalyzer::print(llvm::raw_ostream &out) {
     llvm::PassManager<llvm::Module> pm;
     llvm::AnalysisManager<llvm::Module> am;
-    pm.addPass(llvm::PrintModulePass(llvm::outs()));
+    pm.addPass(llvm::PrintModulePass(out));
     pm.run(*m_module, am);
 }
 
-int YacCodeGenContext::execute() {
-    auto main = m_module->getFunction("main");
-    if (!main) {
-        std::cerr << "Cannot find main function" << std::endl;
-        return 1;
-    }
-    std::vector<llvm::GenericValue> args;
-    if (main->getFunctionType() != llvm::FunctionType::get(llvm::IntegerType::get(globalContext, 32), false)) {
-        std::cerr << "Wrong main function signature" << std::endl;
-        return 1;
-    }
+int YacSemanticAnalyzer::execute(llvm::Function *main, int argc, const char **argv) {
     llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::move(m_module)).create();
     if (!engine) {
-        std::cerr << "Failed to create execution engine" << std::endl;
+        std::cerr << "yac: failed to create execution engine" << std::endl;
         return 1;
     }
     engine->finalizeObject();
-    llvm::GenericValue v = engine->runFunction(main, args);
-    return static_cast<int>(v.IntVal.getLimitedValue());
+    int (*func)(int argc, const char **argv) = reinterpret_cast<int (*)(int, const char **)>(engine->getPointerToFunction(main));
+    return func(argc, argv);
+}
+
+
+llvm::LLVMContext *YacSemanticAnalyzer::g_context;
+
+llvm::LLVMContext &YacSemanticAnalyzer::context() {
+    if (g_context)
+        return *g_context;
+    g_context = new llvm::LLVMContext;
+    return *g_context;
+}
+
+llvm::Value *YacSemanticAnalyzer::find(YacDeclaration *declaration)
+{
+    auto iter = m_values.find(declaration);
+    return iter == m_values.end() ? nullptr : iter->second;
+}
+
+void YacSemanticAnalyzer::ensureBlockTerminated()
+{
+    assert(!m_block || m_function);
+    if (m_block && !m_block->getTerminator()) {
+        if (m_function->getReturnType()->isVoidTy()) {
+            llvm::ReturnInst::Create(YacSemanticAnalyzer::context(), m_block);
+        } else {
+            llvm::Value *variable = new llvm::AllocaInst(m_function->getReturnType(), 0, "", m_block);
+            llvm::Value *value = new llvm::LoadInst(variable, "", m_block);
+            llvm::ReturnInst::Create(YacSemanticAnalyzer::context(), value, m_block);
+        }
+    }
+}
+
+YacFunctionDefinition *addEntry(YacDeclaration *main)
+{
+    assert(main);
+    llvm::LLVMContext &context = YacSemanticAnalyzer::context();
+    llvm::Type *type1 = llvm::Type::getInt32Ty(context),
+            *type2 = llvm::PointerType::getUnqual(llvm::PointerType::getUnqual(llvm::Type::getInt32Ty(context)));
+    std::vector<llvm::Type *> types {type1, type2};
+    auto arg1 = new YacDeclaration(type1), arg2 = new YacDeclaration(type2);
+    auto params = new YacScope;
+    params->addNode(arg1);
+    params->addNode(arg2);
+    auto func = new YacFunctionDefinition(
+            llvm::FunctionType::get(type1, types, false),
+            params, new YacCallExpression(new YacObjectExpression(main), new YacExpressionList{
+                    new YacObjectExpression(arg1),
+                    new YacObjectExpression(arg2)
+            }));
+    root->addNode(func);
+    return func;
 }

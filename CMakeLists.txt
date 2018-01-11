@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.9)
-project(Basic_Compiler)
+project(YetAnotherCompiler CXX C ASM)
 
+set(CMAKE_C_STANDARD 90)
 set(CMAKE_CXX_STANDARD 11)
 
 find_package(BISON REQUIRED)
@@ -52,5 +53,31 @@ add_executable(yac
         src/main.cpp)
 
 llvm_map_components_to_libnames(llvm_libs core executionengine x86asmparser x86asmprinter x86codegen mcjit)
-
 target_link_libraries(yac ${llvm_libs})
+
+foreach(Test tests palindromic kmp calc)
+    add_executable(${Test}-cc src/tests/${Test}.c)
+    add_custom_command(
+            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.c
+            COMMAND ${CMAKE_C_COMPILER} ${Test}.c -E -o ${Test}-yac.c ${CMAKE_C_FLAGS}
+            #COMMAND sed -i '/^\#.*/,+1 d' ${Test}-yac.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}.c
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            COMMENT "Generating ${Test}-yac.c"
+    )
+    add_custom_command(
+            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.ll
+            COMMAND $<TARGET_FILE:yac> -o ${Test}-yac.ll ${Test}-yac.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.c
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            COMMENT "Generating ${Test}-yac.ll"
+    )
+    add_custom_command(
+            OUTPUT ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.s
+            COMMAND llc -relocation-model=pic ${Test}-yac.ll
+            DEPENDS ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.ll
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests
+            COMMENT "Generating ${Test}-yac.s"
+    )
+    add_executable(${Test}-yac ${CMAKE_SOURCE_DIR}/src/tests/${Test}-yac.s)
+endforeach(Test)

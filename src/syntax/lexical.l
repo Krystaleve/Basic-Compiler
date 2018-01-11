@@ -3,6 +3,7 @@ L			[a-zA-Z_]
 H			[a-fA-F0-9]
 E			[Ee][+-]?{D}+
 IS			(u|U|l|L)*
+FS			(f|F|l|L)
 
 %{
     #include <string>
@@ -14,14 +15,12 @@ IS			(u|U|l|L)*
     #include "../ast/ast.h"
     #include "../ast/declaration.h"
     #include "../ast/expression.h"
+    #include "../ast/context.h"
 
     #include "syntax.h"
 
-    extern llvm::LLVMContext globalContext;
-    unsigned int line_number = 1;
-
     void yyerror(const char *error_str) {
-        std::cerr << "Error occurred at line " << line_number << ": " << error_str <<std::endl;
+        std::cerr << "yac: " << YacSyntaxError(error_str) << std::endl;
     }
 
     // end - begin must be greater than 1
@@ -31,7 +30,7 @@ IS			(u|U|l|L)*
             return begin;
         }
         if (begin == end) {
-            std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+            yyerror("unexpected ending of escape sequence");
             result = '\\';
             return begin;
         }
@@ -45,7 +44,10 @@ IS			(u|U|l|L)*
             case 'v': result = '\v'; return begin;
             case 'x':
                 if (begin == end || !isxdigit(str[begin])) {
-                    std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+                    if (begin == end)
+                        yyerror("unexpected ending of escape sequence");
+                    else
+                        yyerror("unknown escape sequence");
                     result = 'x';
                 } else {
                     std::string value;
@@ -66,12 +68,14 @@ IS			(u|U|l|L)*
                         value.push_back(str[begin++]);
                     result = std::stoi(value, nullptr, 8);
                 } else {
-                    std::cerr << "Error occurred at line " << line_number << ": " << "Unknown escape sequence" << std::endl;
+            	    yyerror("unknown escape sequence");
                     result = str[begin - 1];
                 }
                 return begin;
         }
     }
+
+    #define NC column_number += yyleng
 %}
 
 %%
@@ -79,54 +83,83 @@ IS			(u|U|l|L)*
 "/*"			{
     char c, prev = 0;
 	while ((c = yyinput()) != 0 && (c != '/' || prev != '*')) {
+	    if (c == '\n') {
+	        ++line_number;
+	        column_number = 1;
+	    } else
+	        ++column_number;
+
 		prev = c;
 	}
 	if (c == 0)
 	    yyerror("unterminated comment");
 }
-"//"[^\n]*      ;
+"//"[^\n]*      NC;
 
-"#"[^\n]*       yyerror("unsupported preprocessor directives");
+"#"[ \t\f]+{D}+[ \t\f]+\"(\\.|[^\\"\n])*\"([ \t\f]+[1234])*	{
+    // TODO: Implements trace back
+    NC;
+    int begin = 1, end = yyleng;
+    line_number = 0;
+    column_number = 1;
+    while (begin < end && isspace(yytext[begin])) ++begin;
+    while (begin < end && isdigit(yytext[begin]))
+        line_number = line_number * 10 + (yytext[begin++] - '0');
+    --line_number;
+    input.clear();
+    while (begin < end && yytext[begin] != '\"') ++begin;
+    ++begin;
+    while (begin < end && yytext[end] != '\"') --end;
+    while (begin < end) {
+        char ch;
+        begin = parseEscape(yytext, begin, end, ch);
+        input.push_back(ch);
+    }
+}
 
-"auto"			return AUTO;
-"break"			return BREAK;
-"case"			return CASE;
-"char"			return CHAR;
-"const"			return CONST;
-"continue"		return CONTINUE;
-"default"		return DEFAULT;
-"do"			return DO;
-"double"		return DOUBLE;
-"else"			return ELSE;
-"enum"			return ENUM;
-"extern"		return EXTERN;
-"float"			return FLOAT;
-"for"			return FOR;
-"goto"			return GOTO;
-"if"			return IF;
-"int"			return INT;
-"long"			return LONG;
-"register"		return REGISTER;
-"return"		return RETURN;
-"short"			return SHORT;
-"signed"		return SIGNED;
-"sizeof"		return SIZEOF;
-"static"		return STATIC;
-"struct"		return STRUCT;
-"switch"		return SWITCH;
-"typedef"		return TYPEDEF;
-"union"			return UNION;
-"unsigned"		return UNSIGNED;
-"void"			return VOID;
-"volatile"		return VOLATILE;
-"while"			return WHILE;
+"#"[^\n]*       NC;
+
+"auto"			NC; return AUTO;
+"break"			NC; return BREAK;
+"case"			NC; return CASE;
+"char"			NC; return CHAR;
+"const"			NC; return CONST;
+"continue"		NC; return CONTINUE;
+"default"		NC; return DEFAULT;
+"do"			NC; return DO;
+"double"		NC; return DOUBLE;
+"else"			NC; return ELSE;
+"enum"			NC; return ENUM;
+"extern"		NC; return EXTERN;
+"float"			NC; return FLOAT;
+"for"			NC; return FOR;
+"goto"			NC; return GOTO;
+"if"			NC; return IF;
+"int"			NC; return INT;
+"long"			NC; return LONG;
+"register"		NC; return REGISTER;
+"return"		NC; return RETURN;
+"short"			NC; return SHORT;
+"signed"		NC; return SIGNED;
+"sizeof"		NC; return SIZEOF;
+"static"		NC; return STATIC;
+"struct"		NC; return STRUCT;
+"switch"		NC; return SWITCH;
+"typedef"		NC; return TYPEDEF;
+"union"			NC; return UNION;
+"unsigned"		NC; return UNSIGNED;
+"void"			NC; return VOID;
+"volatile"		NC; return VOLATILE;
+"while"			NC; return WHILE;
 
 {L}({L}|{D})*		{
+    NC;
     yylval.string = new std::string(yytext, yyleng);
     return IDENTIFIER;
 }
 
 (0[xX]{H}+|0[0-7]*|[1-9]{D}*){IS}? {
+    NC;
     bool isSigned = true, isLong = false;
     std::string input(yytext, yyleng);
     while (true) {
@@ -139,21 +172,23 @@ IS			(u|U|l|L)*
         input.pop_back();
     }
     if (isLong)
-        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), std::stol(input), isSigned);
+        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(YacSemanticAnalyzer::context()), std::stol(input), isSigned);
     else
-        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(globalContext), std::stoi(input), isSigned);
+        yylval.value = llvm::ConstantInt::get(llvm::Type::getInt32Ty(YacSemanticAnalyzer::context()), std::stoi(input), isSigned);
     return INTEGER_CONSTANT;
 }
 
 '(\\.|[^\\'\n])+'	{
+    NC;
     char ch;
     if (parseEscape(yytext, 1, yyleng - 1, ch) != yyleng - 1)
-        std::cerr << "Error occurred at line " << line_number << ": " << "Multi-character character constant" << std::endl;
-    yylval.value = llvm::ConstantInt::get(llvm::Type::getInt8Ty(globalContext), ch, true);
+        yyerror("multi-character character constant");
+    yylval.value = llvm::ConstantInt::get(llvm::Type::getInt8Ty(YacSemanticAnalyzer::context()), ch, true);
     return INTEGER_CONSTANT;
 }
 
-\"(\\.|[^\\"])*\"	{
+\"(\\.|[^\\"\n])*\"	{
+    NC;
     std::string value;
     char ch;
     int begin = 1, end = yyleng - 1;
@@ -161,62 +196,67 @@ IS			(u|U|l|L)*
         begin = parseEscape(yytext, begin, end, ch);
         value.push_back(ch);
     }
-    yylval.value = llvm::ConstantDataArray::getString(globalContext, value);
+    yylval.value = llvm::ConstantDataArray::getString(YacSemanticAnalyzer::context(), value);
     return STRING_LITERAL;
 }
 
-"..."			return ELLIPSIS;
-">>="			return RIGHT_ASSIGN;
-"<<="			return LEFT_ASSIGN;
-"+="			return ADD_ASSIGN;
-"-="			return SUB_ASSIGN;
-"*="			return MUL_ASSIGN;
-"/="			return DIV_ASSIGN;
-"%="			return MOD_ASSIGN;
-"&="			return AND_ASSIGN;
-"^="			return XOR_ASSIGN;
-"|="			return OR_ASSIGN;
-">>"			return RIGHT_OP;
-"<<"			return LEFT_OP;
-"++"			return INC_OP;
-"--"			return DEC_OP;
-"->"			return PTR_OP;
-"&&"			return AND_OP;
-"||"			return OR_OP;
-"<="			return LE_OP;
-">="			return GE_OP;
-"=="			return EQ_OP;
-"!="			return NE_OP;
-";"			    return ';';
-("{"|"<%")		return '{';
-("}"|"%>")		return '}';
-","		    	return ',';
-":"		    	return ':';
-"="		    	return '=';
-"("		    	return '(';
-")"		    	return ')';
-("["|"<:")		return '[';
-("]"|":>")		return ']';
-"."			    return '.';
-"&"			    return '&';
-"!"			    return '!';
-"~"			    return '~';
-"-"			    return '-';
-"+"			    return '+';
-"*"			    return '*';
-"/"			    return '/';
-"%"			    return '%';
-"<"			    return '<';
-">"			    return '>';
-"^"			    return '^';
-"|"			    return '|';
-"?"			    return '?';
+{D}+{E}{FS}?		    NC; return(FLOAT_CONSTANT);
+{D}*"."{D}+({E})?{FS}?	NC; return(FLOAT_CONSTANT);
+{D}+"."{D}*({E})?{FS}?	NC; return(FLOAT_CONSTANT);
 
-[ \t\v\f]		;
-"\n"            ++line_number;
+"..."			NC; return ELLIPSIS;
+">>="			NC; return RIGHT_ASSIGN;
+"<<="			NC; return LEFT_ASSIGN;
+"+="			NC; return ADD_ASSIGN;
+"-="			NC; return SUB_ASSIGN;
+"*="			NC; return MUL_ASSIGN;
+"/="			NC; return DIV_ASSIGN;
+"%="			NC; return MOD_ASSIGN;
+"&="			NC; return AND_ASSIGN;
+"^="			NC; return XOR_ASSIGN;
+"|="			NC; return OR_ASSIGN;
+">>"			NC; return RIGHT_OP;
+"<<"			NC; return LEFT_OP;
+"++"			NC; return INC_OP;
+"--"			NC; return DEC_OP;
+"->"			NC; return PTR_OP;
+"&&"			NC; return AND_OP;
+"||"			NC; return OR_OP;
+"<="			NC; return LE_OP;
+">="			NC; return GE_OP;
+"=="			NC; return EQ_OP;
+"!="			NC; return NE_OP;
+";"			    NC; return ';';
+("{"|"<%")		NC; return '{';
+("}"|"%>")		NC; return '}';
+","		    	NC; return ',';
+":"		    	NC; return ':';
+"="		    	NC; return '=';
+"("		    	NC; return '(';
+")"		    	NC; return ')';
+("["|"<:")		NC; return '[';
+("]"|":>")		NC; return ']';
+"."			    NC; return '.';
+"&"			    NC; return '&';
+"!"			    NC; return '!';
+"~"			    NC; return '~';
+"-"			    NC; return '-';
+"+"			    NC; return '+';
+"*"			    NC; return '*';
+"/"			    NC; return '/';
+"%"			    NC; return '%';
+"<"			    NC; return '<';
+">"			    NC; return '>';
+"^"			    NC; return '^';
+"|"			    NC; return '|';
+"?"			    NC; return '?';
+
+[ \t\v\f]		NC;
+"\n"            ++line_number; column_number = 1;
 
 . {
-    std::cerr << "Error occurred at line " << line_number << ": Unexpected token '" << yytext << "'."<< std::endl;
+    NC;
+    yyerror((std::string("unexpected character \'") + *yytext + "\' (" + std::to_string((int)*yytext) + ")").c_str());
 }
 
 %%

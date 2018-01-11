@@ -11,12 +11,10 @@
     #include "../ast/statement.h"
     #include "../ast/type.h"
 
-    extern int line_number;
     extern int yylex();
     extern int yyerror(const char *error_str);
 
-    extern llvm::LLVMContext globalContext;
-    extern YacSyntaxTreeNodeList *root;
+    #define EXPRESSION_TODO(x) x = new YacErrorExpression, std::cerr << "yac: " << YacSyntaxError("unsupported expression") << std::endl
 %}
 
 %union
@@ -30,6 +28,11 @@
     YacExpression *expression;
     YacExpressionList *expression_list;
     YacSyntaxTreeNode *node;
+    YacSyntaxTreeNodeList *node_list;
+    YacDeclaration *declaration;
+    YacDeclarationList *declaration_list;
+    YacFunctionDefinition *function;
+    YacScope *scope;
 }
 
 
@@ -45,7 +48,7 @@
 %token CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE CONST VOLATILE VOID
 %token STRUCT UNION ENUM ELLIPSIS
 
-%token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
+%token CASE DEFAULT IF THEN ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
 %type <type> type_specifier
 %type <declarator> declarator direct_declarator abstract_declarator direct_abstract_declarator
@@ -55,9 +58,15 @@
 %type <expression> shift_expression relational_expression equality_expression and_expression exclusive_or_expression inclusive_or_expression
 %type <expression> logical_and_expression logical_or_expression conditional_expression assignment_expression expression_statement
 %type <expression_list> argument_expression_list
-%type <node> statement compound_statement statement_list declaration_list jump_statement
-%type <node> external_declaration function_definition declaration parameter_declaration translation_unit parameter_list
+%type <node> statement jump_statement
+%type <node_list> statement_list
+%type <declaration> function_definition parameter_declaration
+%type <declaration_list> declaration declaration_list parameter_list external_declaration
+%type <function> function_definition_start
+%type <scope> compound_statement compound_statement_start translation_unit compound_statement_end
 
+%nonassoc THEN
+%nonassoc ELSE
 %error-verbose
 
 %start translation_unit
@@ -65,20 +74,27 @@
 %%
 
 primary_expression
-	: IDENTIFIER         { $$ = new YacIdentifierExpression($1); }
+	: IDENTIFIER         {
+	    auto value = findInScopes(*$1);
+	    if (!value) {
+	       std::cerr << "yac: " << YacSyntaxError("unknown identifier `" + *$1 + "\'") << std::endl;
+	       $$ = new YacErrorExpression;
+	    } else
+	        $$ = new YacObjectExpression(value);
+    }
 	| INTEGER_CONSTANT   { $$ = new YacConstantExpression($1); }
-	| FLOAT_CONSTANT     { $$ = new YacExpression; } // TODO
+	| FLOAT_CONSTANT     { EXPRESSION_TODO($$); } // TODO
 	| STRING_LITERAL     { $$ = new YacConstantExpression($1); }
 	| '(' expression ')' { $$ = $2; }
 	;
 
 postfix_expression
 	: primary_expression                                  { $$ = $1; }
-	| postfix_expression '[' expression ']'               { $$ = new YacExpression; } // TODO
+	| postfix_expression '[' expression ']'               { EXPRESSION_TODO($$); } // TODO
 	| postfix_expression '(' ')'                          { $$ = new YacCallExpression($1); }
-	| postfix_expression '(' argument_expression_list ')' { $$ = new YacCallExpression($1, $3); } // TODO
-	| postfix_expression INC_OP                           { $$ = new YacExpression; } // TODO
-	| postfix_expression DEC_OP                           { $$ = new YacExpression; } // TODO
+	| postfix_expression '(' argument_expression_list ')' { $$ = new YacCallExpression($1, $3); }
+	| postfix_expression INC_OP                           { EXPRESSION_TODO($$); } // TODO
+	| postfix_expression DEC_OP                           { EXPRESSION_TODO($$); } // TODO
 	;
 
 argument_expression_list
@@ -88,10 +104,10 @@ argument_expression_list
 
 unary_expression
 	: postfix_expression              { $$ = $1; }
-	| INC_OP unary_expression         { $$ = new YacExpression; } // TODO
-	| DEC_OP unary_expression         { $$ = new YacExpression; } // TODO
-	| '&' unary_expression            { $$ = new YacExpression; } // TODO
-	| unary_operator unary_expression { $$ = new YacExpression; } // TODO
+	| INC_OP unary_expression         { EXPRESSION_TODO($$); } // TODO
+	| DEC_OP unary_expression         { EXPRESSION_TODO($$); } // TODO
+	| '&' unary_expression            { EXPRESSION_TODO($$); } // TODO
+	| unary_operator unary_expression { EXPRESSION_TODO($$); } // TODO
 	;
 
 unary_operator
@@ -152,12 +168,12 @@ inclusive_or_expression
 
 logical_and_expression
 	: inclusive_or_expression                               { $$ = $1; }
-	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacBinaryLogicExpression($1, $3, AND_OP); }
+	| logical_and_expression AND_OP inclusive_or_expression { $$ = new YacBinaryExpression($1, $3, AND_OP); }
 	;
 
 logical_or_expression
 	: logical_and_expression                             { $$ = $1; }
-	| logical_or_expression OR_OP logical_and_expression { $$ = new YacBinaryLogicExpression($1, $3, OR_OP); }
+	| logical_or_expression OR_OP logical_and_expression { $$ = new YacBinaryExpression($1, $3, OR_OP); }
 	;
 
 conditional_expression
@@ -190,23 +206,26 @@ expression
     ;
 
 declaration
-    : type_specifier ';' { $$ = new YacSyntaxTreeNodeList; }
+    : type_specifier ';' { $$ = new YacDeclarationList; }
     | type_specifier declarator_list ';' {
-        auto node_list = new YacSyntaxTreeNodeList;
-        for (auto declarator: *$2)
-            node_list->children.push_back(new YacDeclaration(declarator->type($1), declarator->identifier()));
-        $$ = node_list;
+        auto list = new YacDeclarationList;
+        for (auto declarator: *$2) {
+            auto node = new YacDeclaration(declarator->type($1), declarator->identifier());
+            list->addNode(node);
+            addToTopScope(node);
+        }
+        $$ = list;
     }
     ;
 
 type_specifier
-    : VOID   { $$ = llvm::Type::getVoidTy(globalContext); }
-    | CHAR   { $$ = llvm::Type::getInt8Ty(globalContext); }
-    | SHORT  { $$ = llvm::Type::getInt16Ty(globalContext); }
-    | INT    { $$ = llvm::Type::getInt32Ty(globalContext); }
-    | LONG   { $$ = llvm::Type::getInt32Ty(globalContext); }
-    | FLOAT  { $$ = llvm::Type::getFloatTy(globalContext); }
-    | DOUBLE { $$ = llvm::Type::getDoubleTy(globalContext); }
+    : VOID   { $$ = llvm::Type::getVoidTy(YacSemanticAnalyzer::context()); }
+    | CHAR   { $$ = llvm::Type::getInt8Ty(YacSemanticAnalyzer::context()); }
+    | SHORT  { $$ = llvm::Type::getInt16Ty(YacSemanticAnalyzer::context()); }
+    | INT    { $$ = llvm::Type::getInt32Ty(YacSemanticAnalyzer::context()); }
+    | LONG   { $$ = llvm::Type::getInt32Ty(YacSemanticAnalyzer::context()); }
+    | FLOAT  { $$ = llvm::Type::getFloatTy(YacSemanticAnalyzer::context()); }
+    | DOUBLE { $$ = llvm::Type::getDoubleTy(YacSemanticAnalyzer::context()); }
     ;
 
 declarator_list
@@ -230,8 +249,8 @@ direct_declarator
 	;
 
 parameter_list
-	: parameter_declaration                    { $$ = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); }
-	| parameter_list ',' parameter_declaration { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($3); }
+	: parameter_declaration                    { $$ = new YacDeclarationList; $$->addNode($1); }
+	| parameter_list ',' parameter_declaration { $$ = $1; $$->addNode($3); }
 	;
 
 parameter_declaration
@@ -262,31 +281,40 @@ direct_abstract_declarator
 statement
 	: compound_statement   { $$ = $1; }
 	| expression_statement { $$ = $1; }
-	| selection_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
-	| iteration_statement  { $$ = new YacSyntaxEmptyNode; } // TODO
+	| selection_statement  { $$ = new YacSyntaxTreeNode; } // TODO
+	| iteration_statement  { $$ = new YacSyntaxTreeNode; } // TODO
 	| jump_statement       { $$ = $1; }
 	;
 
-compound_statement
-	: '{' '}'                                 { $$ = nullptr; }
-	| '{' statement_list '}'                  { $$ = $2; }
-	| '{' declaration_list '}'                { $$ = $2; }
-	| '{' declaration_list statement_list '}' {
-	    $$ = $2;
-	    auto &first = dynamic_cast<YacSyntaxTreeNodeList *>($$)->children;
-	    auto &second = dynamic_cast<YacSyntaxTreeNodeList *>($3)->children;
-	    first.insert(first.end(), second.begin(), second.end());
+compound_statement_start
+    : '{' {
+        $$ = new YacScope;
+        pushScope($$);
     }
+
+compound_statement_end
+    : '}'                                 { $$ = topScope(); popScope(); }
+    | statement_list '}'                  { $$ = topScope(); if ($$) $$->addNode($1); popScope(); }
+    | declaration_list '}'                { $$ = topScope(); if ($$) $$->addNode($1); popScope(); }
+    | declaration_list statement_list '}' { $$ = topScope(); if ($$) { $$->addNode($1); $$->addNode($2); } popScope(); }
+    ;
+
+compound_statement
+	: compound_statement_start compound_statement_end { $$ = $1; assert($1 == $2); }
 	;
 
 declaration_list
-	: declaration                  { $$ = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); }
-	| declaration_list declaration { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($2); }
+	: declaration                  { $$ = $1; }
+	| declaration_list declaration {
+	    $$ = $1;
+	    for (auto node: $2->children)
+	        $$->addNode(node);
+    }
 	;
 
 statement_list
-	: statement                { $$ = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); }
-	| statement_list statement { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($2); }
+	: statement                { $$ = new YacSyntaxTreeNodeList; $$->addNode($1); }
+	| statement_list statement { $$ = $1; $$->addNode($2); }
 	;
 
 expression_statement
@@ -295,7 +323,7 @@ expression_statement
 	;
 
 selection_statement
-	: IF '(' expression ')' statement
+	: IF '(' expression ')' statement                 %prec THEN
 	| IF '(' expression ')' statement ELSE statement
 	;
 
@@ -307,37 +335,58 @@ iteration_statement
 	;
 
 jump_statement
-	: CONTINUE ';'          { $$ = new YacSyntaxEmptyNode; } // TODO
-	| BREAK ';'             { $$ = new YacSyntaxEmptyNode; } // TODO
+	: CONTINUE ';'          { $$ = new YacSyntaxTreeNode; } // TODO
+	| BREAK ';'             { $$ = new YacSyntaxTreeNode; } // TODO
 	| RETURN ';'            { $$ = new YacReturnStatement; }
 	| RETURN expression ';' { $$ = new YacReturnStatement($2); }
 	;
 
 translation_unit
-	: external_declaration                  { $$ = root = new YacSyntaxTreeNodeList; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($1); };
-	| translation_unit external_declaration { $$ = $1; dynamic_cast<YacSyntaxTreeNodeList *>($$)->children.push_back($2); }
+	: external_declaration                  {
+	    $$ = root;
+	    for (auto node: $1->children)
+	        $$->addNode(node);
+    }
+	| translation_unit external_declaration {
+	    $$ = $1;
+	    for (auto node: $2->children)
+	        $$->addNode(node);
+    }
 	;
 
 external_declaration
-	: function_definition { $$ = $1; }
+	: function_definition { $$ = new YacDeclarationList; $$->addNode($1); }
 	| declaration         { $$ = $1; }
 	;
 
-function_definition
-    : type_specifier declarator compound_statement {
+function_definition_start
+    : type_specifier declarator '{' {
         auto type = $2->type($1);
         if (!type->isFunctionTy()) {
-            std::cerr << "Error occurred at line " << line_number << ": " << "Unexpected compound statement after non-function declaration" << std::endl;
-            $$ = new YacSyntaxEmptyNode;
+            std::cerr << "yac: " << YacSyntaxError("compound statement after non-function declaration") << std::endl;
+            $$ = nullptr;
+            pushScope(nullptr);
         } else {
-            std::vector<YacDeclaration *> params;
-            auto node_list = dynamic_cast<YacDeclaratorFunction *>($2);
-            if (node_list->node()) {
-                for (auto node: dynamic_cast<YacSyntaxTreeNodeList *>(node_list->node())->children)
-                    params.push_back(dynamic_cast<YacDeclaration *>(node));
-            }
-            $$ = new YacFunctionDefinition(llvm::cast<llvm::FunctionType>(type), $2->identifier(), std::move(params), $3);
+            auto function = dynamic_cast<YacDeclaratorFunction *>($2);
+            assert(function);
+            auto params = new YacScope, body = new YacScope;
+            $$ = new YacFunctionDefinition(llvm::cast<llvm::FunctionType>(type), params, body, $2->identifier());
+            addToTopScope($$);
+            pushScope(params);
+            auto args = function->node();
+            if (args)
+                for (auto node: args->children) {
+                    params->addNode(node);
+                    addToTopScope(node);
+                }
+            pushScope(body);
         }
+    }
+
+function_definition
+    : function_definition_start compound_statement_end {
+        assert($$ == nullptr ? $2 == nullptr : $1->body == $2 && $1->params == topScope());
+        popScope();
     }
     ;
 

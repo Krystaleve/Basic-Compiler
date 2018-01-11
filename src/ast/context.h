@@ -5,58 +5,57 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <exception>
 #include <stack>
 #include <map>
 #include <memory>
 #include "ast.h"
 
-extern int line_number;
-extern llvm::LLVMContext globalContext;
-
-class CodeBlock {
-    friend class YacCodeGenContext;
+class YacSemanticAnalyzer {
 public:
-    explicit CodeBlock(llvm::BasicBlock *block);
-    CodeBlock(llvm::BasicBlock *block, const std::map<std::string, llvm::Value *> &locals);
-private:
-    llvm::BasicBlock *m_block;
-    std::map<std::string, llvm::Value *> m_locals;
-};
+    YacSemanticAnalyzer();
 
+    static llvm::LLVMContext &context();
 
-class YacCodeGenContext {
-public:
-    YacCodeGenContext();
-
-    std::map<std::string, llvm::Value*>& locals();
-    std::map<std::string, llvm::Value*>& globals();
     llvm::Module &module() {
         return *m_module;
     }
-    llvm::BasicBlock* block();
 
-
-    void push_block(llvm::BasicBlock* block, bool copy_locals = false);
-    void pop_block();
-    bool is_top_level() {
-        return m_blocks.empty();
+    llvm::Value *find(YacDeclaration *declaration);
+    void add(YacDeclaration *declaration, llvm::Value *value) {
+        assert(value);
+        m_values.insert(std::make_pair(declaration, value));
     }
 
+    void print(llvm::raw_ostream &out);
+    int execute(llvm::Function *main, int argc, const char **argv);
+
+    llvm::BasicBlock *block() {
+        return m_block;
+    }
+    void setBlock(llvm::BasicBlock *block) {
+        m_block = block;
+    }
     llvm::Function *function() {
         return m_function;
     }
     void setFunction(llvm::Function *function) {
         m_function = function;
     }
+    void ensureBlockTerminated();
 
-    void print();
-    int execute();
 private:
-    std::stack<CodeBlock> m_blocks;
-    std::map<std::string, llvm::Value *> m_globals;
-
+    std::map<YacDeclaration *, llvm::Value *> m_values;
     std::unique_ptr<llvm::Module> m_module;
+    llvm::BasicBlock *m_block;
     llvm::Function *m_function;
+    static llvm::LLVMContext *g_context;
 };
+
+
+class YacFunctionDefinition;
+
+YacFunctionDefinition *addEntry(YacDeclaration *main);
 
 #endif

@@ -5,6 +5,8 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <string>
 #include <vector>
+#include <map>
+#include <iostream>
 
 #include "ast.h"
 
@@ -48,38 +50,71 @@ private:
     uint64_t m_num;
 };
 
+class YacDeclarationList;
+
 class YacDeclaratorFunction: public YacDeclaratorHasParent {
 public:
-    explicit YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacSyntaxTreeNode *node = nullptr, bool var_arg = false);
+    explicit YacDeclaratorFunction(YacDeclaratorBuilder *parent, YacDeclarationList *list = nullptr, bool var_arg = false);
     llvm::Type *type(llvm::Type *specifier) override;
-    YacSyntaxTreeNode *node() {
+    YacDeclarationList *node() {
         return m_node;
     }
 private:
-    YacSyntaxTreeNode *m_node;
+    YacDeclarationList *m_node;
     bool m_var_arg;
 };
 
 typedef std::vector<YacDeclaratorBuilder *> YacDeclaratorBuilderList;
 
+enum YacSpecifiers {
+    Typedef  = 1 << 1,
+    Auto     = 1 << 2,
+    Register = 1 << 3,
+    Static   = 1 << 4,
+    Extern   = 1 << 5,
+};
+
+class YacScope;
+
 class YacDeclaration: public YacSyntaxTreeNode {
 public:
     llvm::Type *type;
     std::string *identifier;
+    int specifier;
 
-    explicit YacDeclaration(llvm::Type *type, std::string *identifier = nullptr);
-    llvm::Value* generate(YacCodeGenContext &context) override;
+    explicit YacDeclaration(llvm::Type *type, std::string *identifier = nullptr, int specifier = 0);
+    llvm::Value* generate(YacSemanticAnalyzer &context) override;
+    bool isType() {
+        return (specifier & Typedef) != 0;
+    }
 };
 
-class YacFunctionDefinition: public YacSyntaxTreeNode {
+
+class YacDeclarationList: public YacSyntaxTreeNode {
 public:
-    llvm::FunctionType *type;
-    std::string *identifier;
-    std::vector<YacDeclaration *> params;
+    std::vector<YacDeclaration *> children;
+
+    void addNode(YacDeclaration *node) {
+        if (node)
+            children.push_back(node);
+    }
+    llvm::Value* generate(YacSemanticAnalyzer &context) override {
+        for (auto child: children)
+            child->generate(context);
+        return nullptr;
+    };
+
+};
+
+class YacFunctionDefinition: public YacDeclaration {
+public:
+    YacScope *params;
     YacSyntaxTreeNode *body;
 
-    explicit YacFunctionDefinition(llvm::FunctionType *type, std::string *identifier, std::vector<YacDeclaration *> &&params, YacSyntaxTreeNode *body);
-    llvm::Value* generate(YacCodeGenContext &context) override;
+    explicit YacFunctionDefinition(llvm::FunctionType *type, YacScope *params = nullptr, YacSyntaxTreeNode *body = nullptr,
+                                   std::string *identifier = nullptr, int specifier = 0);
+    llvm::Value* generate(YacSemanticAnalyzer &context) override;
 };
+
 
 #endif
